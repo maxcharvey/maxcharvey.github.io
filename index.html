@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Instrument+Sans:wdth,wght@75..100,400..600&amp;family=Newsreader:opsz,wght@6..72,300..600&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260710-interactions">
+  <link rel="stylesheet" href="styles.css?v=20260710-immersion">
   <title>Max Harvey | Atmospheric Science</title>
   <script type="application/ld+json">
     {
@@ -38,7 +38,7 @@
       ]
     }
   </script>
-  <script src="script.js?v=20260710-interactions" defer></script>
+  <script src="script.js?v=20260710-immersion" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -67,17 +67,14 @@
 
   <main id="main">
     <section class="hero" id="top" aria-labelledby="hero-title">
-      <canvas class="hero-plume" data-hero-plume data-max-dpr="1.15" data-frame-rate="24" aria-hidden="true"></canvas>
+      <div class="hero-plume-field" data-hero-field aria-hidden="true">
+        <canvas class="hero-plume" data-hero-plume data-max-dpr="1.15" data-frame-rate="24"></canvas>
+        <svg class="trajectory trajectory-a" viewBox="0 0 1400 700" preserveAspectRatio="none">
+          <path d="M1330 592C1264 520 1240 382 1192 279S1022 171 748 132"></path>
+        </svg>
+      </div>
       <div class="hero-wash" aria-hidden="true"></div>
       <div class="hero-glow" aria-hidden="true"></div>
-      <svg class="trajectory trajectory-a" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M1330 592C1190 514 1130 322 936 229S742 147 616 126"></path>
-      </svg>
-      <svg class="hero-contours" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M720 690C825 610 860 545 975 505s188-46 250-141 94-151 205-188"></path>
-        <path d="M785 720c70-93 126-121 218-151s184-66 236-151 81-130 191-176"></path>
-        <path d="M884 724c71-68 128-80 202-105s161-69 205-133 70-104 154-142"></path>
-      </svg>
 
       <div class="hero-inner shell">
         <div class="hero-copy">
@@ -99,7 +96,7 @@
             <li>Field observations</li>
             <li>Transport analysis</li>
           </ul>
-          <p class="hero-interaction"><i aria-hidden="true"></i>Move across the atmosphere to bend the plume.</p>
+          <p class="hero-interaction"><i aria-hidden="true"></i>Move across the atmosphere to disturb the plume.</p>
           <a href="https://iac.ethz.ch/people-iac/person-detail.MzcwNDc2.TGlzdC82MzcsLTE5NDE2NTk2NTg%3D.html" target="_blank" rel="noreferrer">Based at ETH Zürich <span aria-hidden="true">↗</span></a>
         </aside>
 
@@ -117,6 +114,7 @@
       <a class="scroll-cue" href="#research" aria-label="Scroll to research">
         <span>Scroll to trace</span><i aria-hidden="true"></i>
       </a>
+      <div class="section-dissolve section-dissolve--research" aria-hidden="true"></div>
     </section>
 
     <section class="research section-night" id="research" aria-labelledby="research-title">
@@ -128,7 +126,8 @@
       </div>
 
       <div class="story shell">
-        <div class="story-steps">
+        <div class="story-steps" data-research-story>
+          <span class="story-spine" data-story-spine aria-hidden="true"><span class="story-spine-fill" data-story-progress></span></span>
           <article class="story-step reveal is-active" data-scene="particle">
             <p class="step-number">01 / PARTICLE</p>
             <h3>What absorbs the light?</h3>
@@ -140,6 +139,23 @@
             <h3>How does smoke age?</h3>
             <p>Sunlight, oxidants, temperature, and phase state reshape absorption during transport. Competing bleaching schemes turn those processes into testable hypotheses.</p>
             <ul class="tag-list" aria-label="Plume research methods"><li>Photochemistry</li><li>Viscosity</li><li>Aircraft data</li></ul>
+            <figure class="bleaching-widget" data-bleaching-widget aria-labelledby="bleaching-title" aria-describedby="bleaching-note">
+              <div class="bleaching-widget-head">
+                <h4 id="bleaching-title">Absorption through plume age</h4>
+                <span>Concept model</span>
+              </div>
+              <div class="bleaching-bars" data-bleaching-chart role="img" aria-label="Illustrative relative absorption at zero hours: ultraviolet 100 percent, blue 86 percent, green 66 percent, red 48 percent.">
+                <div class="bleaching-band" data-band="UV" data-initial="100" data-floor="52" data-decay="0.042"><div class="bleaching-track"><i data-band-fill><b data-band-cool></b></i></div><span>UV</span><output data-band-output>100%</output></div>
+                <div class="bleaching-band" data-band="Blue" data-initial="86" data-floor="47" data-decay="0.034"><div class="bleaching-track"><i data-band-fill><b data-band-cool></b></i></div><span>Blue</span><output data-band-output>86%</output></div>
+                <div class="bleaching-band" data-band="Green" data-initial="66" data-floor="42" data-decay="0.017"><div class="bleaching-track"><i data-band-fill><b data-band-cool></b></i></div><span>Green</span><output data-band-output>66%</output></div>
+                <div class="bleaching-band" data-band="Red" data-initial="48" data-floor="42" data-decay="0.005"><div class="bleaching-track"><i data-band-fill><b data-band-cool></b></i></div><span>Red</span><output data-band-output>48%</output></div>
+              </div>
+              <div class="bleaching-control">
+                <label for="bleaching-hours"><span>Hours since emission</span><output for="bleaching-hours" data-bleaching-output>0 h</output></label>
+                <input id="bleaching-hours" data-bleaching-hours type="range" min="0" max="72" step="1" value="0" aria-describedby="bleaching-note">
+              </div>
+              <figcaption id="bleaching-note">Illustrative exponential decay; normalized relative absorption, not measured data.</figcaption>
+            </figure>
           </article>
           <article class="story-step reveal" data-scene="trajectory">
             <p class="step-number">03 / TRANSPORT</p>
@@ -227,6 +243,7 @@
           </div>
         </div>
       </div>
+      <div class="section-dissolve section-dissolve--paper" aria-hidden="true"></div>
     </section>
 
     <section class="projects section-paper" id="projects" aria-labelledby="projects-title">
@@ -238,13 +255,14 @@
         <p>Projects connect process-scale aerosol chemistry to transport histories and global model behaviour.</p>
       </div>
 
-      <div class="project-list shell">
-        <article class="project reveal">
+      <div class="project-list shell" data-project-graph>
+        <article class="project reveal" id="project-p1" data-project="P1" data-links="P2 P4">
           <div class="project-index"><span>01</span><i></i></div>
           <div class="project-main">
             <p class="project-type">MODEL DEVELOPMENT · ACTIVE</p>
             <h3>Brown carbon in GEOS-Chem</h3>
             <p>A physically grounded representation of biomass-burning organic aerosol, spanning emission, chemical aging, persistence, and evolving light absorption.</p>
+            <nav class="project-links" aria-label="Brown carbon model connections"><a href="#project-p2" data-project="P2">constrained by → P2 aging</a><a href="#project-p4" data-project="P4">evaluated through → P4 optics</a></nav>
           </div>
           <dl class="project-meta">
             <div><dt>Challenge</dt><dd>Represent evolving smoke absorption at global scale.</dd></div>
@@ -264,12 +282,13 @@
           </figure>
         </article>
 
-        <article class="project reveal">
+        <article class="project reveal" id="project-p2" data-project="P2" data-links="P1 P3">
           <div class="project-index"><span>02</span><i></i></div>
           <div class="project-main">
             <p class="project-type">OBSERVATION × MODEL · ACTIVE</p>
             <h3>Aircraft constraints on smoke aging</h3>
             <p>FIREX-AQ and WE-CAN measurements provide a moving laboratory for testing alternative descriptions of bleaching and phase-state-limited chemistry.</p>
+            <nav class="project-links" aria-label="Aircraft aging project connections"><a href="#project-p1" data-project="P1">constrains → P1 model</a><a href="#project-p3" data-project="P3">timed by → P3 transport</a></nav>
           </div>
           <dl class="project-meta">
             <div><dt>Challenge</dt><dd>Separate competing descriptions of smoke aging.</dd></div>
@@ -288,12 +307,13 @@
           </figure>
         </article>
 
-        <article class="project reveal">
+        <article class="project reveal" id="project-p3" data-project="P3" data-links="P2 P4">
           <div class="project-index"><span>03</span><i></i></div>
           <div class="project-main">
             <p class="project-type">LAGRANGIAN METHODS · ACTIVE</p>
             <h3>Physical plume age from trajectories</h3>
             <p>Ensemble air-mass histories connect aircraft samples to fire activity, with explicit uncertainty around source contact and transport time.</p>
+            <nav class="project-links" aria-label="Trajectory project connections"><a href="#project-p2" data-project="P2">feeds → P2 aging</a><a href="#project-p4" data-project="P4">supports → P4 optics</a></nav>
           </div>
           <dl class="project-meta">
             <div><dt>Challenge</dt><dd>Recover the age and source history of sampled smoke.</dd></div>
@@ -311,12 +331,13 @@
           </figure>
         </article>
 
-        <article class="project reveal">
+        <article class="project reveal" id="project-p4" data-project="P4" data-links="P1 P3">
           <div class="project-index"><span>04</span><i></i></div>
           <div class="project-main">
             <p class="project-type">OPTICAL EVALUATION · ACTIVE</p>
             <h3>Closing the loop on aerosol optics</h3>
             <p>Offline optical calculations bridge modelled aerosol composition to AOD, absorption AOD, and single-scattering albedo observations.</p>
+            <nav class="project-links" aria-label="Aerosol optics project connections"><a href="#project-p1" data-project="P1">closes loop → P1 model</a><a href="#project-p3" data-project="P3">uses → P3 histories</a></nav>
           </div>
           <dl class="project-meta">
             <div><dt>Challenge</dt><dd>Connect simulated aerosol to observed light absorption.</dd></div>
@@ -335,6 +356,7 @@
           </figure>
         </article>
       </div>
+      <div class="section-dissolve section-dissolve--outputs" aria-hidden="true"></div>
     </section>
 
     <section class="outputs" id="outputs" aria-labelledby="outputs-title">
@@ -358,6 +380,7 @@
           <a href="https://github.com/maxcharvey" target="_blank" rel="noreferrer">In the meantime, view code on GitHub <span aria-hidden="true">↗</span></a>
         </div>
       </div>
+      <div class="section-dissolve section-dissolve--paper" aria-hidden="true"></div>
     </section>
 
     <section class="about section-paper" id="about" aria-labelledby="about-title">
@@ -395,10 +418,11 @@
           </div>
         </div>
       </div>
+      <div class="section-dissolve section-dissolve--contact" aria-hidden="true"></div>
     </section>
 
     <section class="contact" id="contact" aria-labelledby="contact-title">
-      <canvas class="contact-plume" data-contact-plume aria-hidden="true"></canvas>
+      <canvas class="contact-plume" data-contact-plume data-max-dpr="1.25" data-frame-rate="24" aria-hidden="true"></canvas>
       <div class="shell contact-inner reveal">
         <p class="kicker">Contact / Zürich</p>
         <h2 id="contact-title">Have a plume, a model,<br>or a question?</h2>

@@ -14,6 +14,7 @@
     const nav = document.querySelector("[data-nav]");
     const links = [...nav.querySelectorAll("a[href^='#']")];
     let lastY = window.scrollY;
+    let headerFrame = 0;
 
     const closeNav = () => {
       toggle.setAttribute("aria-expanded", "false");
@@ -33,13 +34,20 @@
       if (event.key === "Escape") closeNav();
     });
 
-    window.addEventListener("scroll", () => {
+    const syncHeader = () => {
+      headerFrame = 0;
       const y = window.scrollY;
       header.classList.toggle("is-scrolled", y > 20);
       const hiding = y > lastY && y > 160 && !document.body.classList.contains("nav-open");
       header.classList.toggle("is-hidden", hiding);
       lastY = y;
+    };
+
+    window.addEventListener("scroll", () => {
+      if (headerFrame) return;
+      headerFrame = requestAnimationFrame(syncHeader);
     }, { passive: true });
+    syncHeader();
 
     const sections = links
       .map((link) => document.querySelector(link.getAttribute("href")))
@@ -137,6 +145,11 @@
 
     start() {
       if (this.running) return;
+      if (reducedMotion.matches) {
+        this.resize();
+        this.draw(16, 0);
+        return;
+      }
       this.running = true;
       this.lastFrame = performance.now();
       this.frameRequest = requestAnimationFrame(this.frame);
@@ -318,6 +331,7 @@
         pathPosition: 0.5,
         normalOffset: 0
       };
+      this.ageProgress = 0;
 
       let randomState = 0x2f6e2b1;
       const random = () => {
@@ -354,22 +368,29 @@
       if (!this.running && this.visible) this.start();
     }
 
+    setAgeProgress(progress) {
+      const next = clamp(progress, 0, 1);
+      if (Math.abs(next - this.ageProgress) < 0.002) return;
+      this.ageProgress = next;
+      if (!this.running) this.invalidate();
+    }
+
     geometry() {
       const { width, height } = this;
       const mobile = width < 720;
       return mobile
         ? {
-            start: { x: width * 0.96, y: height * 0.78 },
-            controlA: { x: width * 0.78, y: height * 0.72 },
-            controlB: { x: width * 0.53, y: height * 0.34 },
-            end: { x: width * 0.2, y: height * 0.29 },
+            start: { x: width * 0.9, y: height * 0.78 },
+            controlA: { x: width * 0.9, y: height * 0.56 },
+            controlB: { x: width * 0.76, y: height * 0.26 },
+            end: { x: width * 0.19, y: height * 0.2 },
             widthScale: 0.72
           }
         : {
-            start: { x: width * 0.94, y: height * 0.82 },
-            controlA: { x: width * 0.85, y: height * 0.64 },
-            controlB: { x: width * 0.7, y: height * 0.27 },
-            end: { x: width * 0.46, y: height * 0.2 },
+            start: { x: width * 0.94, y: height * 0.84 },
+            controlA: { x: width * 0.92, y: height * 0.57 },
+            controlB: { x: width * 0.84, y: height * 0.25 },
+            end: { x: width * 0.47, y: height * 0.15 },
             widthScale: 1
           };
     }
@@ -466,11 +487,37 @@
       if (this.pointer.strength > 0.002 || this.pointer.targetStrength > 0) this.resolvePointer();
 
       const geometry = this.geometry();
+      const age = this.ageProgress;
+      const visibility = lerp(1, 0.82, age);
+      const rgba = (warm, cool, alpha) => `rgba(${Math.round(lerp(warm[0], cool[0], age))}, ${Math.round(lerp(warm[1], cool[1], age))}, ${Math.round(lerp(warm[2], cool[2], age))}, ${alpha * visibility})`;
       const bodyGradient = ctx.createLinearGradient(geometry.start.x, geometry.start.y, geometry.end.x, geometry.end.y);
-      bodyGradient.addColorStop(0, "rgba(222, 112, 57, 0.78)");
-      bodyGradient.addColorStop(0.42, "rgba(190, 137, 111, 0.52)");
-      bodyGradient.addColorStop(0.74, "rgba(145, 151, 151, 0.38)");
-      bodyGradient.addColorStop(1, "rgba(120, 158, 176, 0.22)");
+      bodyGradient.addColorStop(0, rgba([222, 112, 57], [118, 132, 141], 0.78));
+      bodyGradient.addColorStop(0.42, rgba([190, 137, 111], [112, 132, 145], 0.56));
+      bodyGradient.addColorStop(0.74, rgba([145, 151, 151], [103, 132, 149], 0.42));
+      bodyGradient.addColorStop(1, rgba([120, 158, 176], [92, 126, 148], 0.27));
+
+      const scale = Math.min(width, height);
+      const billows = [
+        { t: 0.04, lane: 0, along: 0.034, across: 0.018, alpha: 0.65, blur: 18, warm: [217, 120, 61], cool: [133, 139, 143] },
+        { t: 0.22, lane: -0.02, along: 0.105, across: 0.05, alpha: 0.42, blur: 24, warm: [183, 132, 105], cool: [121, 137, 146] },
+        { t: 0.46, lane: 0.08, along: 0.105, across: 0.088, alpha: 0.36, blur: 30, warm: [153, 145, 139], cool: [111, 136, 149] },
+        { t: 0.72, lane: -0.04, along: 0.09, across: 0.165, alpha: 0.29, blur: 36, warm: [137, 147, 151], cool: [100, 130, 149] },
+        { t: 0.92, lane: 0.03, along: 0.07, across: 0.23, alpha: 0.21, blur: 42, warm: [126, 148, 159], cool: [88, 121, 143] }
+      ];
+
+      ctx.save();
+      billows.forEach((billow, index) => {
+        const t = clamp(billow.t + Math.sin(sceneTime * 0.1 + index * 1.7) * 0.006, 0, 1);
+        const point = this.pathPoint(t, billow.lane, sceneTime);
+        const derivative = this.cubicDerivative(geometry.start, geometry.controlA, geometry.controlB, geometry.end, t);
+        const angle = Math.atan2(derivative.y, derivative.x);
+        ctx.filter = `blur(${billow.blur}px)`;
+        ctx.beginPath();
+        ctx.ellipse(point.x, point.y, scale * billow.along, scale * billow.across, angle, 0, Math.PI * 2);
+        ctx.fillStyle = rgba(billow.warm, billow.cool, billow.alpha);
+        ctx.fill();
+      });
+      ctx.restore();
 
       ctx.save();
       ctx.filter = `blur(${Math.max(10, width / 95)}px)`;
@@ -497,25 +544,14 @@
         ctx.beginPath();
         ctx.ellipse(point.x, point.y, radius * cloud.stretch, radius * 0.62, -0.55 + life * 0.35, 0, Math.PI * 2);
         ctx.fillStyle = warm
-          ? `rgba(211, 127, 79, ${envelope * 0.075})`
-          : `rgba(139, 172, 184, ${envelope * 0.062})`;
+          ? rgba([211, 127, 79], [119, 139, 150], envelope * 0.12)
+          : rgba([139, 172, 184], [96, 132, 153], envelope * 0.1);
         ctx.fill();
       });
       ctx.restore();
 
       ctx.save();
       ctx.globalCompositeOperation = "screen";
-      [
-        { center: -0.36, thickness: 0.045, alpha: 0.3 },
-        { center: -0.02, thickness: 0.038, alpha: 0.36 },
-        { center: 0.34, thickness: 0.032, alpha: 0.24 }
-      ].forEach((ribbon) => {
-        this.ribbonPath(ribbon.center, ribbon.thickness, sceneTime);
-        ctx.globalAlpha = ribbon.alpha;
-        ctx.fillStyle = bodyGradient;
-        ctx.fill();
-      });
-
       this.motes.forEach((mote) => {
         const life = (mote.phase + sceneTime * mote.speed) % 1;
         const point = this.pathPoint(life, mote.lane, sceneTime);
@@ -523,16 +559,16 @@
         ctx.beginPath();
         ctx.arc(point.x, point.y, mote.size * (0.75 + life * 0.65), 0, Math.PI * 2);
         ctx.fillStyle = mote.tone > 0.62
-          ? `rgba(245, 172, 112, ${alpha})`
-          : `rgba(178, 201, 207, ${alpha * 0.7})`;
+          ? rgba([245, 172, 112], [151, 176, 188], alpha)
+          : rgba([178, 201, 207], [129, 163, 181], alpha * 0.7);
         ctx.fill();
       });
       ctx.restore();
 
       const source = geometry.start;
       const sourceGlow = ctx.createRadialGradient(source.x, source.y, 0, source.x, source.y, 74);
-      sourceGlow.addColorStop(0, "rgba(255, 177, 104, 0.82)");
-      sourceGlow.addColorStop(0.18, "rgba(218, 101, 48, 0.32)");
+      sourceGlow.addColorStop(0, rgba([255, 177, 104], [174, 178, 177], 0.82));
+      sourceGlow.addColorStop(0.18, rgba([218, 101, 48], [119, 137, 147], 0.32));
       sourceGlow.addColorStop(1, "rgba(191, 106, 61, 0)");
       ctx.save();
       ctx.globalCompositeOperation = "screen";
@@ -540,7 +576,7 @@
       ctx.beginPath();
       ctx.arc(source.x, source.y, 74, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "rgba(255, 191, 123, 0.96)";
+      ctx.fillStyle = rgba([255, 191, 123], [158, 177, 185], 0.96);
       ctx.beginPath();
       ctx.arc(source.x, source.y, 5.5, 0, Math.PI * 2);
       ctx.fill();
@@ -551,7 +587,7 @@
         const y = source.y - life * 66;
         ctx.beginPath();
         ctx.arc(x, y, spark.size * (1 - life * 0.55), 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(248, 172, 102, ${(1 - life) * 0.72})`;
+        ctx.fillStyle = rgba([248, 172, 102], [157, 177, 185], (1 - life) * 0.72);
         ctx.fill();
       });
       ctx.restore();
@@ -1243,21 +1279,111 @@
   function setupHeroPlume() {
     const canvas = document.querySelector("[data-hero-plume]");
     const hero = canvas.closest(".hero");
+    const field = hero.querySelector("[data-hero-field]");
     const plume = new HeroPlumeSurface(canvas);
-    const canInteract = window.matchMedia("(hover: hover) and (pointer: fine)").matches && !reducedMotion.matches;
+    const interactionQuery = window.matchMedia("(min-width: 768px) and (hover: hover) and (pointer: fine)");
+    let heroHeight = hero.offsetHeight;
+    let heroTop = hero.offsetTop;
+    let heroInView = window.scrollY < heroHeight;
+    let interactionEnabled = false;
+    let pointerFrame = 0;
+    let scrollFrame = 0;
+    let pointer = { x: window.innerWidth * 0.72, y: window.innerHeight * 0.44, active: false };
 
-    if (canInteract) {
-      hero.addEventListener("pointermove", (event) => {
-        const rect = hero.getBoundingClientRect();
-        const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
-        const y = clamp((event.clientY - rect.top) / Math.min(rect.height, window.innerHeight), 0, 1);
-        plume.setPointer(x, y, true);
-      }, { passive: true });
+    const renderPointer = () => {
+      pointerFrame = 0;
+      if (!interactionEnabled || !pointer.active) {
+        field.style.transform = "translate3d(0, 0, 0)";
+        plume.setPointer(0.72, 0.44, false);
+        return;
+      }
 
-      hero.addEventListener("pointerleave", () => plume.setPointer(0.72, 0.44, false));
-      hero.addEventListener("pointercancel", () => plume.setPointer(0.72, 0.44, false));
-      window.addEventListener("blur", () => plume.setPointer(0.72, 0.44, false));
-    }
+      const viewportX = clamp(pointer.x / Math.max(window.innerWidth, 1), 0, 1);
+      const viewportY = clamp(pointer.y / Math.max(window.innerHeight, 1), 0, 1);
+      const localX = clamp((pointer.x - field.offsetLeft) / Math.max(field.offsetWidth, 1), 0, 1);
+      const localY = clamp((pointer.y + window.scrollY - heroTop - field.offsetTop) / Math.max(field.offsetHeight, 1), 0, 1);
+      field.style.transform = `translate3d(${(viewportX * 2 - 1) * 14}px, ${(viewportY * 2 - 1) * 8}px, 0)`;
+      plume.setPointer(localX, localY, true);
+    };
+
+    const queuePointer = () => {
+      if (pointerFrame) return;
+      pointerFrame = requestAnimationFrame(renderPointer);
+    };
+
+    const resetPointer = () => {
+      pointer.active = false;
+      queuePointer();
+    };
+
+    const syncAge = () => {
+      scrollFrame = 0;
+      if (!interactionEnabled || !heroInView) return;
+      plume.setAgeProgress(clamp(window.scrollY / Math.max(heroHeight, 1), 0, 1));
+    };
+
+    const queueAge = () => {
+      if (!interactionEnabled || !heroInView || scrollFrame) return;
+      scrollFrame = requestAnimationFrame(syncAge);
+    };
+
+    const syncMetrics = () => {
+      heroHeight = hero.offsetHeight;
+      heroTop = hero.offsetTop;
+    };
+
+    const syncInteraction = () => {
+      const nextEnabled = interactionQuery.matches && !reducedMotion.matches;
+      if (nextEnabled === interactionEnabled) return;
+      interactionEnabled = nextEnabled;
+      if (interactionEnabled) {
+        syncMetrics();
+        queueAge();
+        return;
+      }
+
+      pointer.active = false;
+      if (pointerFrame) cancelAnimationFrame(pointerFrame);
+      if (scrollFrame) cancelAnimationFrame(scrollFrame);
+      pointerFrame = 0;
+      scrollFrame = 0;
+      field.style.transform = "translate3d(0, 0, 0)";
+      plume.setPointer(0.72, 0.44, false);
+      plume.setAgeProgress(0);
+    };
+
+    hero.addEventListener("pointermove", (event) => {
+      if (!interactionEnabled) return;
+      pointer = { x: event.clientX, y: event.clientY, active: true };
+      queuePointer();
+    }, { passive: true });
+    hero.addEventListener("pointerleave", resetPointer);
+    hero.addEventListener("pointercancel", resetPointer);
+    window.addEventListener("blur", resetPointer);
+    window.addEventListener("scroll", queueAge, { passive: true });
+    window.addEventListener("resize", () => {
+      syncMetrics();
+      syncInteraction();
+      queueAge();
+    });
+    window.addEventListener("pageshow", () => {
+      syncMetrics();
+      syncInteraction();
+      queueAge();
+    });
+    interactionQuery.addEventListener("change", syncInteraction);
+    reducedMotion.addEventListener("change", syncInteraction);
+
+    const heroObserver = new IntersectionObserver(([entry]) => {
+      heroInView = entry.isIntersecting;
+      if (heroInView) queueAge();
+      else if (scrollFrame) {
+        cancelAnimationFrame(scrollFrame);
+        scrollFrame = 0;
+      }
+    });
+    heroObserver.observe(hero);
+    syncInteraction();
     plume.start();
   }
 
@@ -1270,6 +1396,9 @@
     const motionToggle = document.querySelector("[data-research-motion]");
     const motionLabel = document.querySelector("[data-research-motion-label]");
     const steps = [...document.querySelectorAll("[data-scene]")];
+    const storySteps = document.querySelector("[data-research-story]");
+    const spine = storySteps.querySelector("[data-story-spine]");
+    const progressFill = storySteps.querySelector("[data-story-progress]");
     const model = new ModelSurface(canvas);
     const scenes = {
       particle: {
@@ -1317,28 +1446,43 @@
       framePending = false;
       const mobile = window.matchMedia("(max-width: 720px)").matches;
       const anchorY = window.innerHeight * (mobile ? 0.78 : 0.475);
-      let next = null;
+      const rects = steps.map((step) => step.getBoundingClientRect());
+      const storyRect = storySteps.getBoundingClientRect();
+      const firstCenter = rects[0].top + rects[0].height / 2;
+      const lastCenter = rects[rects.length - 1].top + rects[rects.length - 1].height / 2;
+      const storySpan = Math.max(lastCenter - firstCenter, 1);
+      const storyProgress = reducedMotion.matches ? 1 : clamp((anchorY - firstCenter) / storySpan, 0, 1);
+      let next = reducedMotion.matches ? steps[steps.length - 1] : null;
+      let nextIndex = reducedMotion.matches ? steps.length - 1 : 0;
       let nearestDistance = Number.POSITIVE_INFINITY;
 
-      steps.forEach((step) => {
-        const rect = step.getBoundingClientRect();
-        if (rect.top <= anchorY && rect.bottom > anchorY) {
-          next = step;
-          nearestDistance = -1;
-          return;
-        }
-        if (nearestDistance < 0) return;
-        const distance = Math.abs((rect.top + rect.bottom) / 2 - anchorY);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          next = step;
-        }
-      });
+      spine.style.top = `${firstCenter - storyRect.top}px`;
+      spine.style.height = `${storySpan}px`;
+      progressFill.style.transform = `translateX(-0.5px) scaleY(${storyProgress})`;
+
+      if (!reducedMotion.matches) {
+        steps.forEach((step, stepIndex) => {
+          const rect = rects[stepIndex];
+          if (rect.top <= anchorY && rect.bottom > anchorY) {
+            next = step;
+            nextIndex = stepIndex;
+            nearestDistance = -1;
+            return;
+          }
+          if (nearestDistance < 0) return;
+          const distance = Math.abs((rect.top + rect.bottom) / 2 - anchorY);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            next = step;
+            nextIndex = stepIndex;
+          }
+        });
+      }
 
       activate(next);
       if (next) {
-        const activeRect = next.getBoundingClientRect();
-        const progress = clamp((anchorY - activeRect.top) / Math.max(activeRect.height, 1), 0, 1);
+        const activeRect = rects[nextIndex];
+        const progress = reducedMotion.matches ? 1 : clamp((anchorY - activeRect.top) / Math.max(activeRect.height, 1), 0, 1);
         model.setProgress(progress);
       }
     };
@@ -1349,9 +1493,14 @@
       requestAnimationFrame(syncActiveStep);
     };
 
-    window.addEventListener("scroll", queueSync, { passive: true });
-    window.addEventListener("resize", queueSync);
-    window.addEventListener("pageshow", queueSync);
+    if (!reducedMotion.matches) {
+      window.addEventListener("scroll", queueSync, { passive: true });
+      window.addEventListener("resize", queueSync);
+      window.addEventListener("pageshow", queueSync);
+    } else {
+      window.addEventListener("resize", queueSync);
+      window.addEventListener("pageshow", queueSync);
+    }
     document.fonts?.ready.then(queueSync);
     motionToggle.addEventListener("click", () => {
       const paused = motionToggle.getAttribute("aria-pressed") !== "true";
@@ -1361,9 +1510,44 @@
       motionLabel.textContent = paused ? "Resume animation" : "Pause animation";
       model.setPaused(paused);
     });
-    activate(steps[0]);
+    activate(reducedMotion.matches ? steps[steps.length - 1] : steps[0]);
     queueSync();
     model.start();
+  }
+
+  function setupBleachingWidget() {
+    const widget = document.querySelector("[data-bleaching-widget]");
+    if (!widget) return;
+
+    const slider = widget.querySelector("[data-bleaching-hours]");
+    const hoursOutput = widget.querySelector("[data-bleaching-output]");
+    const chart = widget.querySelector("[data-bleaching-chart]");
+    const bands = [...widget.querySelectorAll("[data-band]")];
+
+    const sync = () => {
+      const hours = Number(slider.value);
+      const cooling = hours / Number(slider.max);
+      const readings = bands.map((band) => {
+        const initial = Number(band.dataset.initial);
+        const floor = Number(band.dataset.floor);
+        const decay = Number(band.dataset.decay);
+        const absorption = floor + (initial - floor) * Math.exp(-decay * hours);
+        const rounded = Math.round(absorption);
+        band.querySelector("[data-band-fill]").style.setProperty("--band-height", `${absorption}%`);
+        band.querySelector("[data-band-cool]").style.setProperty("--cool-opacity", cooling.toFixed(3));
+        band.querySelector("[data-band-output]").textContent = `${rounded}%`;
+        const spokenBand = band.dataset.band === "UV" ? "ultraviolet" : band.dataset.band.toLowerCase();
+        return `${spokenBand} ${rounded} percent`;
+      });
+
+      hoursOutput.textContent = `${hours} h`;
+      slider.style.setProperty("--bleaching-progress", `${cooling * 100}%`);
+      slider.setAttribute("aria-valuetext", `${hours} hours since emission; illustrative relative absorption: ${readings.join(", ")}`);
+      chart.setAttribute("aria-label", `Illustrative relative absorption at ${hours} hours: ${readings.join(", ")}.`);
+    };
+
+    slider.addEventListener("input", sync);
+    sync();
   }
 
   function setupLab() {
@@ -1450,6 +1634,65 @@
     lab.start();
   }
 
+  function setupProjectGraph() {
+    const graph = document.querySelector("[data-project-graph]");
+    if (!graph) return;
+
+    const cards = [...graph.querySelectorAll(".project[data-project]")];
+    const graphElements = [...graph.querySelectorAll("[data-project]")];
+
+    const clear = () => {
+      graphElements.forEach((element) => element.classList.remove("is-graph-source", "is-graph-linked"));
+    };
+
+    const highlight = (sourceId, linkedIds) => {
+      clear();
+      const sourceCard = cards.find((card) => card.dataset.project === sourceId);
+      sourceCard?.classList.add("is-graph-source");
+
+      [sourceId, ...linkedIds].forEach((projectId) => {
+        graph.querySelectorAll(`[data-project="${projectId}"]`).forEach((element) => {
+          if (element !== sourceCard) element.classList.add("is-graph-linked");
+        });
+      });
+    };
+
+    const highlightCard = (card) => {
+      highlight(card.dataset.project, card.dataset.links.split(/\s+/).filter(Boolean));
+    };
+
+    const restoreBaseline = () => {
+      const target = cards.find((card) => `#${card.id}` === window.location.hash);
+      if (target) highlightCard(target);
+      else clear();
+    };
+
+    cards.forEach((card) => {
+      const links = [...card.querySelectorAll(".project-links [data-project]")];
+      card.addEventListener("pointerenter", () => highlightCard(card));
+      card.addEventListener("pointerleave", () => {
+        if (!card.contains(document.activeElement)) restoreBaseline();
+      });
+
+      links.forEach((link) => {
+        const highlightLink = () => highlight(card.dataset.project, [link.dataset.project]);
+        const restore = () => {
+          const focusedLink = links.find((candidate) => candidate === document.activeElement);
+          if (focusedLink) highlight(card.dataset.project, [focusedLink.dataset.project]);
+          else if (card.matches(":hover")) highlightCard(card);
+          else restoreBaseline();
+        };
+        link.addEventListener("pointerenter", highlightLink);
+        link.addEventListener("pointerleave", restore);
+        link.addEventListener("focus", highlightLink);
+        link.addEventListener("blur", restore);
+      });
+    });
+
+    window.addEventListener("hashchange", restoreBaseline);
+    restoreBaseline();
+  }
+
   function setupContactPlume() {
     const canvas = document.querySelector("[data-contact-plume]");
     const plume = new PlumeSurface(canvas, {
@@ -1477,7 +1720,9 @@
   setupReveals();
   setupHeroPlume();
   setupResearchScenes();
+  setupBleachingWidget();
   setupLab();
+  setupProjectGraph();
   setupContactPlume();
   setupMotionPreference();
 
