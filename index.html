@@ -69,11 +69,17 @@
     <section class="hero" id="top" aria-labelledby="hero-title">
       <canvas class="hero-plume" data-hero-plume aria-hidden="true"></canvas>
       <div class="hero-wash" aria-hidden="true"></div>
+      <div class="hero-glow" aria-hidden="true"></div>
       <svg class="trajectory trajectory-a" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
         <path d="M-80 610 Q310 540 610 390 T1480 120"></path>
       </svg>
       <svg class="trajectory trajectory-b" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
         <path d="M-100 670 Q360 610 760 470 T1500 280"></path>
+      </svg>
+      <svg class="hero-contours" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M720 690C825 610 860 545 975 505s188-46 250-141 94-151 205-188"></path>
+        <path d="M785 720c70-93 126-121 218-151s184-66 236-151 81-130 191-176"></path>
+        <path d="M884 724c71-68 128-80 202-105s161-69 205-133 70-104 154-142"></path>
       </svg>
 
       <div class="hero-inner shell">
@@ -89,15 +95,24 @@
 
         <aside class="hero-monitor reveal" aria-label="Animated plume status">
           <div class="monitor-head">
-            <span>LIVE PLUME / CONCEPTUAL</span>
+            <span>PLUME OBSERVATORY / 47.38°N</span>
             <span class="live-dot">RUNNING</span>
           </div>
+          <div class="monitor-plot" aria-hidden="true">
+            <svg viewBox="0 0 260 82" preserveAspectRatio="none">
+              <path class="monitor-grid" d="M0 20.5H260M0 41H260M0 61.5H260M65 0V82M130 0V82M195 0V82"></path>
+              <path class="monitor-area" d="M0 64C28 61 36 49 62 50s33 13 59 8 33-29 58-31 41 17 81-13V82H0Z"></path>
+              <path class="monitor-curve" d="M0 64C28 61 36 49 62 50s33 13 59 8 33-29 58-31 41 17 81-13"></path>
+              <circle cx="179" cy="27" r="3"></circle>
+            </svg>
+            <div><span>relative absorption</span><b data-monitor-value>0.68</b></div>
+          </div>
           <dl>
-            <div><dt>source</dt><dd>biomass burning</dd></div>
+            <div><dt>source</dt><dd><i class="status-swatch warm"></i>biomass burning</dd></div>
             <div><dt>transport</dt><dd data-wind-readout>ENE · 7.2 m s⁻¹</dd></div>
-            <div><dt>state</dt><dd data-state-readout>aging / dispersing</dd></div>
+            <div><dt>state</dt><dd><i class="status-swatch cool"></i><span data-state-readout>aging / dispersing</span></dd></div>
           </dl>
-          <p>Move your pointer through the plume to perturb its flow.</p>
+          <p><span>INTERACTION</span> Move through the flow field to perturb the plume.</p>
         </aside>
 
         <div class="hero-scale reveal" aria-label="Research scales from particles to climate">
@@ -153,12 +168,18 @@
 
         <aside class="story-visual" aria-label="Animated visualization of the active research scale">
           <div class="visual-chrome">
-            <span data-scene-label>PARTICLE OPTICS</span>
-            <span>CONCEPT MODEL v0.4</span>
+            <span><b data-scene-index>01</b> / <i data-scene-label>PARTICLE OPTICS</i></span>
+            <span>PROCESS VIEW · CONCEPTUAL</span>
           </div>
           <canvas data-model-canvas aria-hidden="true"></canvas>
-          <div class="visual-axis"><span>emission</span><span>transport</span><span>evaluation</span></div>
-          <div class="visual-legend"><i></i><span>absorbing aerosol</span><i></i><span>air-mass path</span></div>
+          <div class="visual-readout">
+            <span data-scene-kicker>OPTICAL RESPONSE</span>
+            <strong data-scene-value>λ-dependent</strong>
+            <small data-scene-unit>absorption efficiency</small>
+          </div>
+          <div class="visual-caption" data-scene-caption>Organic chromophores absorb more strongly toward shorter wavelengths.</div>
+          <div class="visual-axis"><span data-axis-left>300 nm</span><span data-axis-mid>wavelength</span><span data-axis-right>700 nm</span></div>
+          <div class="visual-legend"><i></i><span data-legend-a>absorbing fraction</span><i></i><span data-legend-b>incident light</span></div>
         </aside>
       </div>
     </section>
@@ -175,9 +196,18 @@
 
         <div class="lab-console reveal">
           <div class="lab-screen">
-            <div class="lab-screen-head"><span>PLUME TRANSPORT SKETCH</span><span data-lab-status>PLAYING</span></div>
+            <div class="lab-screen-head">
+              <span>PLUME TRANSPORT / PLAN VIEW</span>
+              <span class="lab-coordinates">47.38°N · 8.55°E</span>
+              <span data-lab-status>PLAYING</span>
+            </div>
             <canvas data-lab-canvas aria-label="Interactive conceptual smoke plume"></canvas>
-            <div class="lab-scale"><span>SOURCE / t₀</span><span data-age-label>+18 H</span><span>DOWNWIND</span></div>
+            <div class="lab-compass" aria-hidden="true"><i></i><span>N</span></div>
+            <div class="lab-readout">
+              <span>EST. PATH</span><strong data-distance-output>467 km</strong>
+              <span>REL. ABS.</span><strong data-absorption-output>0.68</strong>
+            </div>
+            <div class="lab-scale"><span>FIRE / t₀</span><span data-age-label>+18 H</span><span>OBSERVATION</span></div>
           </div>
           <div class="lab-controls">
             <label>
@@ -219,6 +249,14 @@
             <div><dt>Question</dt><dd>How much absorbing organic aerosol persists?</dd></div>
             <div><dt>Approach</dt><dd>GEOS-Chem Classic · scheme ensemble</dd></div>
           </dl>
+          <div class="project-figure figure-grid" aria-hidden="true">
+            <span>GLOBAL FIELD</span>
+            <svg viewBox="0 0 180 110">
+              <g class="mini-grid"><path d="M1 1H179V109H1Z M31 1V109M61 1V109M91 1V109M121 1V109M151 1V109M1 28H179M1 55H179M1 82H179"></path></g>
+              <g class="heat-cells"><rect x="32" y="29" width="28" height="25"></rect><rect x="62" y="29" width="28" height="25"></rect><rect x="62" y="56" width="28" height="25"></rect><rect x="92" y="56" width="28" height="25"></rect><rect x="122" y="56" width="28" height="25"></rect></g>
+              <path class="mini-line warm-line" d="M8 84C38 78 54 64 77 66s37-24 55-21 23-15 41-19"></path>
+            </svg>
+          </div>
         </article>
 
         <article class="project reveal">
@@ -232,6 +270,16 @@
             <div><dt>Question</dt><dd>Which aging mechanisms match observed plumes?</dd></div>
             <div><dt>Approach</dt><dd>Aircraft data · multi-scheme evaluation</dd></div>
           </dl>
+          <div class="project-figure figure-series" aria-hidden="true">
+            <span>AGING ENSEMBLE</span>
+            <svg viewBox="0 0 180 110">
+              <path class="mini-axis" d="M12 9V96H174"></path>
+              <path class="mini-line warm-line" d="M12 21C35 28 42 47 67 50s34 20 52 23 31 14 55 15"></path>
+              <path class="mini-line cool-line" d="M12 24C33 35 49 38 68 44s35 9 54 21 30 5 52 16"></path>
+              <path class="mini-line ghost-line" d="M12 18C30 23 43 36 65 40s41 18 59 20 27 11 50 13"></path>
+              <g class="sample-dots"><circle cx="38" cy="35" r="3"></circle><circle cx="78" cy="54" r="3"></circle><circle cx="119" cy="69" r="3"></circle><circle cx="157" cy="83" r="3"></circle></g>
+            </svg>
+          </div>
         </article>
 
         <article class="project reveal">
@@ -245,6 +293,15 @@
             <div><dt>Question</dt><dd>How old is the smoke at measurement time?</dd></div>
             <div><dt>Approach</dt><dd>LAGRANTO · ERA5 · fire attribution</dd></div>
           </dl>
+          <div class="project-figure figure-path" aria-hidden="true">
+            <span>TRAJECTORY MEMBERS</span>
+            <svg viewBox="0 0 180 110">
+              <path class="map-contour" d="M-5 77C31 55 42 65 71 45s47-8 65-28 37-7 52-23M-8 95c37-19 57-12 82-27s47-5 67-22 31-7 46-14"></path>
+              <path class="mini-line cool-line" d="M12 92C48 85 49 54 84 58s39-35 82-34"></path>
+              <path class="mini-line ghost-line" d="M12 92C42 77 63 78 81 54s53-13 85-30M12 92c39 2 51-25 79-31s39-29 75-37"></path>
+              <circle class="source-dot" cx="12" cy="92" r="4"></circle><circle class="sample-ring" cx="166" cy="24" r="6"></circle>
+            </svg>
+          </div>
         </article>
 
         <article class="project reveal">
@@ -258,11 +315,23 @@
             <div><dt>Question</dt><dd>Do simulated species produce credible optics?</dd></div>
             <div><dt>Approach</dt><dd>offAOD · AERONET · model diagnostics</dd></div>
           </dl>
+          <div class="project-figure figure-scatter" aria-hidden="true">
+            <span>MODEL / OBSERVED</span>
+            <svg viewBox="0 0 180 110">
+              <path class="mini-axis" d="M12 9V96H174"></path><path class="one-line" d="M14 93L171 12"></path>
+              <g class="scatter-dots"><circle cx="35" cy="78" r="3"></circle><circle cx="52" cy="69" r="3"></circle><circle cx="71" cy="64" r="3"></circle><circle cx="86" cy="47" r="3"></circle><circle cx="112" cy="48" r="3"></circle><circle cx="128" cy="31" r="3"></circle><circle cx="151" cy="24" r="3"></circle></g>
+            </svg>
+          </div>
         </article>
       </div>
     </section>
 
     <section class="outputs" id="outputs" aria-labelledby="outputs-title">
+      <svg class="outputs-orbit" viewBox="0 0 900 500" aria-hidden="true">
+        <ellipse cx="690" cy="250" rx="360" ry="145"></ellipse>
+        <ellipse cx="690" cy="250" rx="260" ry="95"></ellipse>
+        <path d="M310 250H900"></path><circle cx="526" cy="250" r="4"></circle><circle cx="789" cy="250" r="4"></circle>
+      </svg>
       <div class="shell outputs-grid">
         <div class="outputs-copy reveal">
           <p class="kicker">Outputs / evolving</p>
@@ -285,11 +354,14 @@
         <div class="about-aside reveal">
           <div class="portrait-placeholder" role="img" aria-label="Portrait placeholder for Max Harvey">
             <svg viewBox="0 0 320 420" aria-hidden="true">
-              <path d="M-20 360Q90 250 170 260T350 100"></path>
-              <path d="M-40 405Q100 300 205 290T365 150"></path>
-              <circle cx="170" cy="260" r="5"></circle>
+              <defs><linearGradient id="profileGlow" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#bf6a3d" stop-opacity=".55"></stop><stop offset="1" stop-color="#5b88a3" stop-opacity=".1"></stop></linearGradient></defs>
+              <g class="profile-contours"><path d="M-30 379Q78 279 165 281T362 99"></path><path d="M-48 414Q95 315 201 298T371 151"></path><path d="M-55 340Q72 232 151 246T344 61"></path><path d="M4 420Q116 342 224 329T370 215"></path></g>
+              <path class="profile-band" d="M-10 372C79 299 120 287 168 278s93-55 150-139V420H-10Z"></path>
+              <path class="profile-route" d="M25 347C96 312 99 260 166 258s87-103 138-126"></path>
+              <g class="profile-points"><circle cx="25" cy="347" r="5"></circle><circle cx="166" cy="258" r="4"></circle><circle cx="304" cy="132" r="5"></circle></g>
             </svg>
-            <span>PORTRAIT / FORTHCOMING</span>
+            <div class="portrait-coordinates"><span>47.3769° N</span><span>008.5417° E</span></div>
+            <span>PORTRAIT / FORTHCOMING · ATMOSPHERIC PROFILE</span>
           </div>
           <dl class="about-facts">
             <div><dt>Based at</dt><dd>ETH Zürich · IAC</dd></div>
