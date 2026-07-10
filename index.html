@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Instrument+Sans:wdth,wght@75..100,400..600&amp;family=Newsreader:opsz,wght@6..72,300..600&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260710-interactions">
   <title>Max Harvey | Atmospheric Science</title>
   <script type="application/ld+json">
     {
@@ -38,7 +38,7 @@
       ]
     }
   </script>
-  <script src="script.js" defer></script>
+  <script src="script.js?v=20260710-interactions" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -67,14 +67,11 @@
 
   <main id="main">
     <section class="hero" id="top" aria-labelledby="hero-title">
-      <canvas class="hero-plume" data-hero-plume aria-hidden="true"></canvas>
+      <canvas class="hero-plume" data-hero-plume data-max-dpr="1.15" data-frame-rate="24" aria-hidden="true"></canvas>
       <div class="hero-wash" aria-hidden="true"></div>
       <div class="hero-glow" aria-hidden="true"></div>
       <svg class="trajectory trajectory-a" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M-80 610 Q310 540 610 390 T1480 120"></path>
-      </svg>
-      <svg class="trajectory trajectory-b" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M-100 670 Q360 610 760 470 T1500 280"></path>
+        <path d="M1330 592C1190 514 1130 322 936 229S742 147 616 126"></path>
       </svg>
       <svg class="hero-contours" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
         <path d="M720 690C825 610 860 545 975 505s188-46 250-141 94-151 205-188"></path>
@@ -102,6 +99,7 @@
             <li>Field observations</li>
             <li>Transport analysis</li>
           </ul>
+          <p class="hero-interaction"><i aria-hidden="true"></i>Move across the atmosphere to bend the plume.</p>
           <a href="https://iac.ethz.ch/people-iac/person-detail.MzcwNDc2.TGlzdC82MzcsLTE5NDE2NTk2NTg%3D.html" target="_blank" rel="noreferrer">Based at ETH Zürich <span aria-hidden="true">↗</span></a>
         </aside>
 
@@ -121,7 +119,8 @@
       </a>
     </section>
 
-    <section class="research section-paper" id="research" aria-labelledby="research-title">
+    <section class="research section-night" id="research" aria-labelledby="research-title">
+      <div class="research-atmosphere" aria-hidden="true"></div>
       <div class="section-intro shell reveal">
         <p class="kicker ink">Research thread / 01–04</p>
         <h2 id="research-title">One atmospheric story,<br><em>four connected scales.</em></h2>
@@ -161,7 +160,8 @@
             <span class="visual-index" data-scene-index>01</span>
             <div><small>Research scale</small><strong data-scene-label>Particle optics</strong></div>
           </div>
-          <canvas data-model-canvas aria-hidden="true"></canvas>
+          <button class="visual-motion" type="button" data-research-motion aria-pressed="false" aria-label="Pause research animation"><span aria-hidden="true">Ⅱ</span><span data-research-motion-label>Pause animation</span></button>
+          <canvas data-model-canvas data-max-dpr="1.6" data-frame-rate="30" aria-hidden="true"></canvas>
           <div class="visual-caption">
             <span data-scene-kicker>Why it matters</span>
             <p data-scene-caption>Organic chromophores absorb sunlight differently as smoke evolves.</p>
@@ -174,28 +174,43 @@
       <div class="lab-backdrop" aria-hidden="true"></div>
       <div class="shell lab-layout">
         <div class="lab-copy reveal">
-          <p class="kicker">Interactive method / conceptual</p>
-          <h2 id="lab-title">A plume is not a static object.</h2>
-          <p>Explore how transport time, wind, and mixing change a stylized smoke plume. This is an explanatory sketch, not a scientific simulation.</p>
-          <p class="lab-note"><span aria-hidden="true">↳</span> The same questions drive the real workflow: locate a source, quantify transport, then evaluate chemical change.</p>
+          <div class="lab-copy-heading">
+            <p class="kicker">Interactive method / conceptual</p>
+            <h2 id="lab-title">A plume is not a static object.</h2>
+          </div>
+          <div class="lab-copy-body">
+            <p>Explore how transport time, wind, and mixing reshape the same smoke plume. Each control now drives a distinct part of the visual story.</p>
+            <p class="lab-note"><span aria-hidden="true">↳</span> Age moves the sample and bleaches absorption. Wind changes reach and motion. Mixing widens and dilutes the plume.</p>
+          </div>
         </div>
 
         <div class="lab-console reveal">
           <div class="lab-screen">
             <div class="lab-screen-head">
-              <span>PLUME TRANSPORT / PLAN VIEW</span>
-              <span class="lab-coordinates">47.38°N · 8.55°E</span>
+              <span>PLUME EVOLUTION / CONCEPTUAL</span>
+              <span class="lab-coordinates">RESPONDS TO CONTROLS</span>
               <span data-lab-status>PLAYING</span>
             </div>
-            <canvas data-lab-canvas aria-label="Interactive conceptual smoke plume"></canvas>
+            <canvas data-lab-canvas data-max-dpr="1.5" data-frame-rate="30" aria-label="Interactive conceptual smoke plume responding to transport age, wind speed, and mixing"></canvas>
             <div class="lab-compass" aria-hidden="true"><i></i><span>N</span></div>
             <div class="lab-readout">
-              <span>EST. PATH</span><strong data-distance-output>467 km</strong>
-              <span>REL. ABS.</span><strong data-absorption-output>0.68</strong>
+              <div><span>PATH LENGTH</span><strong data-distance-output>467 km</strong></div>
+              <div><span>ABSORPTION RETAINED</span><strong data-absorption-output>70%</strong></div>
+              <div><span>PLUME SPREAD</span><strong data-spread-output>moderate</strong></div>
             </div>
-            <div class="lab-scale"><span>FIRE / t₀</span><span data-age-label>+18 H</span><span>OBSERVATION</span></div>
+            <div class="lab-scale"><span>FIRE SOURCE</span><span data-age-label>+18 H</span><span>AIRCRAFT SAMPLE</span></div>
+          </div>
+          <div class="lab-summary">
+            <span>Reading the plume</span>
+            <p data-lab-summary>At 18 hours, the aircraft intercepts a moderate plume after about 467 km; it retains roughly 70% of its initial absorption.</p>
           </div>
           <div class="lab-controls">
+            <div class="lab-presets" role="group" aria-label="Example plume scenarios">
+              <span>Try a scenario</span>
+              <button type="button" data-lab-preset data-age-value="6" data-wind-value="4" data-mixing-value="20" aria-pressed="false">Fresh &amp; compact</button>
+              <button type="button" data-lab-preset data-age-value="24" data-wind-value="13" data-mixing-value="36" aria-pressed="false">Fast transport</button>
+              <button type="button" data-lab-preset data-age-value="60" data-wind-value="7" data-mixing-value="82" aria-pressed="false">Old &amp; diffuse</button>
+            </div>
             <label>
               <span>Transport age <output for="age" data-age-output>18 h</output></span>
               <input id="age" data-age type="range" min="1" max="72" value="18">

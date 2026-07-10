@@ -90,8 +90,11 @@
       this.width = 0;
       this.height = 0;
       this.dpr = 1;
+      this.maxDpr = Number(canvas.dataset.maxDpr) || 2;
+      this.frameInterval = Number(canvas.dataset.frameRate) ? 1000 / Number(canvas.dataset.frameRate) : 0;
       this.visible = true;
       this.running = false;
+      this.frameRequest = 0;
       this.lastFrame = 0;
       this.frame = this.frame.bind(this);
 
@@ -103,6 +106,13 @@
         if (this.visible && !this.running) this.start();
       }, { rootMargin: "180px" });
       this.visibilityObserver.observe(canvas);
+      this.handleDocumentVisibility = () => {
+        if (!document.hidden && this.visible) {
+          this.resize();
+          this.start();
+        }
+      };
+      document.addEventListener("visibilitychange", this.handleDocumentVisibility);
       requestAnimationFrame(() => this.resize());
     }
 
@@ -110,7 +120,7 @@
       const rect = this.canvas.getBoundingClientRect();
       const nextWidth = Math.max(1, Math.round(rect.width));
       const nextHeight = Math.max(1, Math.round(rect.height));
-      const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
+      const nextDpr = Math.min(window.devicePixelRatio || 1, this.maxDpr);
       if (nextWidth === this.width && nextHeight === this.height && nextDpr === this.dpr) return;
 
       this.width = nextWidth;
@@ -129,17 +139,35 @@
       if (this.running) return;
       this.running = true;
       this.lastFrame = performance.now();
-      requestAnimationFrame(this.frame);
+      this.frameRequest = requestAnimationFrame(this.frame);
+    }
+
+    stop() {
+      this.running = false;
+      if (this.frameRequest) cancelAnimationFrame(this.frameRequest);
+      this.frameRequest = 0;
+    }
+
+    invalidate() {
+      this.resize();
+      this.draw(performance.now() / 1000, 0);
+      if (this.visible && !document.hidden && !reducedMotion.matches) this.start();
     }
 
     frame(now) {
+      this.frameRequest = 0;
       if (!this.running) return;
-      const delta = Math.min((now - this.lastFrame) / 1000, 0.05);
-      this.lastFrame = now;
+      const elapsed = now - this.lastFrame;
+      if (this.frameInterval && elapsed < this.frameInterval) {
+        this.frameRequest = requestAnimationFrame(this.frame);
+        return;
+      }
+      const delta = Math.min(elapsed / 1000, 0.05);
+      this.lastFrame = this.frameInterval ? now - (elapsed % this.frameInterval) : now;
       this.draw(now / 1000, delta);
 
       if (this.visible && !document.hidden && !reducedMotion.matches) {
-        requestAnimationFrame(this.frame);
+        this.frameRequest = requestAnimationFrame(this.frame);
       } else {
         this.running = false;
       }
@@ -277,39 +305,337 @@
     }
   }
 
+  class HeroPlumeSurface extends CanvasSurface {
+    constructor(canvas) {
+      super(canvas);
+      this.pointer = {
+        x: 0.72,
+        y: 0.44,
+        targetX: 0.72,
+        targetY: 0.44,
+        strength: 0,
+        targetStrength: 0,
+        pathPosition: 0.5,
+        normalOffset: 0
+      };
+
+      let randomState = 0x2f6e2b1;
+      const random = () => {
+        randomState = (randomState * 1664525 + 1013904223) >>> 0;
+        return randomState / 4294967296;
+      };
+
+      this.motes = Array.from({ length: 32 }, () => ({
+        phase: random(),
+        lane: random() * 1.5 - 0.75,
+        size: 0.7 + random() * 1.8,
+        speed: 0.016 + random() * 0.012,
+        tone: random()
+      }));
+      this.clouds = Array.from({ length: 48 }, () => ({
+        phase: random(),
+        lane: random() * 1.8 - 0.9,
+        size: 0.55 + random() * 1.1,
+        stretch: 1.1 + random() * 1.4,
+        drift: 0.7 + random() * 0.65,
+        tone: random()
+      }));
+      this.sparks = Array.from({ length: 7 }, () => ({
+        phase: random(),
+        drift: random() * 2 - 1,
+        size: 0.8 + random() * 1.8
+      }));
+    }
+
+    setPointer(x, y, active = true) {
+      this.pointer.targetX = clamp(x, 0, 1);
+      this.pointer.targetY = clamp(y, 0, 1);
+      this.pointer.targetStrength = active && !reducedMotion.matches ? 1 : 0;
+      if (!this.running && this.visible) this.start();
+    }
+
+    geometry() {
+      const { width, height } = this;
+      const mobile = width < 720;
+      return mobile
+        ? {
+            start: { x: width * 0.96, y: height * 0.78 },
+            controlA: { x: width * 0.78, y: height * 0.72 },
+            controlB: { x: width * 0.53, y: height * 0.34 },
+            end: { x: width * 0.2, y: height * 0.29 },
+            widthScale: 0.72
+          }
+        : {
+            start: { x: width * 0.94, y: height * 0.82 },
+            controlA: { x: width * 0.85, y: height * 0.64 },
+            controlB: { x: width * 0.7, y: height * 0.27 },
+            end: { x: width * 0.46, y: height * 0.2 },
+            widthScale: 1
+          };
+    }
+
+    cubicPoint(start, controlA, controlB, end, t) {
+      const inverse = 1 - t;
+      return {
+        x: inverse ** 3 * start.x + 3 * inverse ** 2 * t * controlA.x + 3 * inverse * t ** 2 * controlB.x + t ** 3 * end.x,
+        y: inverse ** 3 * start.y + 3 * inverse ** 2 * t * controlA.y + 3 * inverse * t ** 2 * controlB.y + t ** 3 * end.y
+      };
+    }
+
+    cubicDerivative(start, controlA, controlB, end, t) {
+      const inverse = 1 - t;
+      return {
+        x: 3 * inverse ** 2 * (controlA.x - start.x) + 6 * inverse * t * (controlB.x - controlA.x) + 3 * t ** 2 * (end.x - controlB.x),
+        y: 3 * inverse ** 2 * (controlA.y - start.y) + 6 * inverse * t * (controlB.y - controlA.y) + 3 * t ** 2 * (end.y - controlB.y)
+      };
+    }
+
+    basePoint(t) {
+      const geometry = this.geometry();
+      return this.cubicPoint(geometry.start, geometry.controlA, geometry.controlB, geometry.end, t);
+    }
+
+    resolvePointer() {
+      const pointerX = this.pointer.x * this.width;
+      const pointerY = this.pointer.y * this.height;
+      let nearestT = 0;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      for (let index = 0; index <= 28; index += 1) {
+        const t = index / 28;
+        const point = this.basePoint(t);
+        const distance = (point.x - pointerX) ** 2 + (point.y - pointerY) ** 2;
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestT = t;
+        }
+      }
+
+      const geometry = this.geometry();
+      const point = this.basePoint(nearestT);
+      const derivative = this.cubicDerivative(geometry.start, geometry.controlA, geometry.controlB, geometry.end, nearestT);
+      const length = Math.hypot(derivative.x, derivative.y) || 1;
+      const normal = { x: -derivative.y / length, y: derivative.x / length };
+      const normalDistance = (pointerX - point.x) * normal.x + (pointerY - point.y) * normal.y;
+      this.pointer.pathPosition = nearestT;
+      this.pointer.normalOffset = clamp(normalDistance, -105, 105);
+    }
+
+    pathPoint(t, lane, time) {
+      const geometry = this.geometry();
+      const point = this.cubicPoint(geometry.start, geometry.controlA, geometry.controlB, geometry.end, t);
+      const derivative = this.cubicDerivative(geometry.start, geometry.controlA, geometry.controlB, geometry.end, t);
+      const length = Math.hypot(derivative.x, derivative.y) || 1;
+      const normal = { x: -derivative.y / length, y: derivative.x / length };
+      const plumeWidth = lerp(7, Math.min(this.width, this.height) * 0.16, t) * geometry.widthScale;
+      const ambient = Math.sin(time * 0.42 + t * 8.5 + lane * 1.7) * (2 + t * 11);
+      const localInfluence = Math.exp(-(((t - this.pointer.pathPosition) / 0.16) ** 2));
+      const pointerBend = this.pointer.normalOffset * 0.58 * localInfluence * this.pointer.strength;
+      const pointerRipple = Math.sin((t - this.pointer.pathPosition) * 26 + time * 3.4) * 18 * localInfluence * this.pointer.strength;
+      const broadSteer = (this.pointer.y - 0.5) * 42 * Math.sin(Math.PI * t) * this.pointer.strength;
+      const offset = lane * plumeWidth + ambient + pointerBend + pointerRipple + broadSteer;
+      return { x: point.x + normal.x * offset, y: point.y + normal.y * offset };
+    }
+
+    ribbonPath(center, thickness, time) {
+      const { ctx } = this;
+      ctx.beginPath();
+      for (let index = 0; index <= 40; index += 1) {
+        const t = index / 40;
+        const point = this.pathPoint(t, center - thickness, time);
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      }
+      for (let index = 40; index >= 0; index -= 1) {
+        const t = index / 40;
+        const point = this.pathPoint(t, center + thickness, time);
+        ctx.lineTo(point.x, point.y);
+      }
+      ctx.closePath();
+    }
+
+    draw(time) {
+      const { ctx, width, height } = this;
+      if (!width || !height) return;
+      const sceneTime = reducedMotion.matches ? 16 : time;
+      ctx.clearRect(0, 0, width, height);
+
+      this.pointer.x = lerp(this.pointer.x, this.pointer.targetX, 0.18);
+      this.pointer.y = lerp(this.pointer.y, this.pointer.targetY, 0.18);
+      this.pointer.strength = lerp(this.pointer.strength, this.pointer.targetStrength, 0.14);
+      if (this.pointer.strength > 0.002 || this.pointer.targetStrength > 0) this.resolvePointer();
+
+      const geometry = this.geometry();
+      const bodyGradient = ctx.createLinearGradient(geometry.start.x, geometry.start.y, geometry.end.x, geometry.end.y);
+      bodyGradient.addColorStop(0, "rgba(222, 112, 57, 0.78)");
+      bodyGradient.addColorStop(0.42, "rgba(190, 137, 111, 0.52)");
+      bodyGradient.addColorStop(0.74, "rgba(145, 151, 151, 0.38)");
+      bodyGradient.addColorStop(1, "rgba(120, 158, 176, 0.22)");
+
+      ctx.save();
+      ctx.filter = `blur(${Math.max(10, width / 95)}px)`;
+      [
+        { center: 0, thickness: 0.92, alpha: 0.5 },
+        { center: -0.28, thickness: 0.62, alpha: 0.34 },
+        { center: 0.34, thickness: 0.57, alpha: 0.3 }
+      ].forEach((ribbon) => {
+        this.ribbonPath(ribbon.center, ribbon.thickness, sceneTime);
+        ctx.globalAlpha = ribbon.alpha;
+        ctx.fillStyle = bodyGradient;
+        ctx.fill();
+      });
+      ctx.restore();
+
+      ctx.save();
+      ctx.filter = `blur(${Math.max(5, width / 260)}px)`;
+      this.clouds.forEach((cloud) => {
+        const life = (cloud.phase + sceneTime * 0.0045 * cloud.drift) % 1;
+        const point = this.pathPoint(life, cloud.lane, sceneTime);
+        const radius = lerp(8, Math.min(width, height) * 0.085, life) * cloud.size;
+        const envelope = Math.sin(Math.PI * life);
+        const warm = cloud.tone > life * 0.8;
+        ctx.beginPath();
+        ctx.ellipse(point.x, point.y, radius * cloud.stretch, radius * 0.62, -0.55 + life * 0.35, 0, Math.PI * 2);
+        ctx.fillStyle = warm
+          ? `rgba(211, 127, 79, ${envelope * 0.075})`
+          : `rgba(139, 172, 184, ${envelope * 0.062})`;
+        ctx.fill();
+      });
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      [
+        { center: -0.36, thickness: 0.045, alpha: 0.3 },
+        { center: -0.02, thickness: 0.038, alpha: 0.36 },
+        { center: 0.34, thickness: 0.032, alpha: 0.24 }
+      ].forEach((ribbon) => {
+        this.ribbonPath(ribbon.center, ribbon.thickness, sceneTime);
+        ctx.globalAlpha = ribbon.alpha;
+        ctx.fillStyle = bodyGradient;
+        ctx.fill();
+      });
+
+      this.motes.forEach((mote) => {
+        const life = (mote.phase + sceneTime * mote.speed) % 1;
+        const point = this.pathPoint(life, mote.lane, sceneTime);
+        const alpha = Math.sin(Math.PI * life) * (0.34 + mote.tone * 0.35);
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, mote.size * (0.75 + life * 0.65), 0, Math.PI * 2);
+        ctx.fillStyle = mote.tone > 0.62
+          ? `rgba(245, 172, 112, ${alpha})`
+          : `rgba(178, 201, 207, ${alpha * 0.7})`;
+        ctx.fill();
+      });
+      ctx.restore();
+
+      const source = geometry.start;
+      const sourceGlow = ctx.createRadialGradient(source.x, source.y, 0, source.x, source.y, 74);
+      sourceGlow.addColorStop(0, "rgba(255, 177, 104, 0.82)");
+      sourceGlow.addColorStop(0.18, "rgba(218, 101, 48, 0.32)");
+      sourceGlow.addColorStop(1, "rgba(191, 106, 61, 0)");
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.fillStyle = sourceGlow;
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, 74, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 191, 123, 0.96)";
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      this.sparks.forEach((spark, index) => {
+        const life = (spark.phase + sceneTime * (0.06 + index * 0.003)) % 1;
+        const x = source.x + spark.drift * (8 + life * 24) + Math.sin(sceneTime * 1.2 + index) * 3;
+        const y = source.y - life * 66;
+        ctx.beginPath();
+        ctx.arc(x, y, spark.size * (1 - life * 0.55), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(248, 172, 102, ${(1 - life) * 0.72})`;
+        ctx.fill();
+      });
+      ctx.restore();
+
+      if (this.pointer.strength > 0.05) {
+        const x = this.pointer.x * width;
+        const y = this.pointer.y * height;
+        ctx.strokeStyle = `rgba(223, 156, 109, ${this.pointer.strength * 0.22})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, 22 + Math.sin(sceneTime * 2.2) * 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
   class ModelSurface extends CanvasSurface {
     constructor(canvas) {
       super(canvas);
       this.scene = "particle";
       this.previousScene = "particle";
       this.changedAt = performance.now();
+      this.sceneOrder = ["particle", "plume", "trajectory", "grid"];
+      this.transitionDirection = 1;
+      this.progress = 0.45;
+      this.paused = false;
+      this.frozenTime = 0;
     }
 
     setScene(scene) {
       if (scene === this.scene) return;
+      this.transitionDirection = Math.sign(this.sceneOrder.indexOf(scene) - this.sceneOrder.indexOf(this.scene)) || 1;
       this.previousScene = this.scene;
       this.scene = scene;
       this.changedAt = performance.now();
-      if (!this.running) this.start();
+      if (this.paused) this.draw(this.frozenTime);
+      else if (!this.running) this.start();
+    }
+
+    setProgress(progress) {
+      this.progress = clamp(progress, 0, 1);
+      if (this.paused || reducedMotion.matches) this.draw(this.frozenTime || 12);
+    }
+
+    setPaused(paused) {
+      this.paused = paused;
+      if (paused) {
+        this.frozenTime = performance.now() / 1000;
+        this.stop();
+        this.draw(this.frozenTime);
+      } else {
+        this.start();
+      }
+    }
+
+    start() {
+      if (this.paused) {
+        this.draw(this.frozenTime);
+        return;
+      }
+      super.start();
     }
 
     draw(time) {
       const { ctx, width, height } = this;
       if (!width || !height) return;
       ctx.clearRect(0, 0, width, height);
-      const elapsed = reducedMotion.matches ? 1 : (performance.now() - this.changedAt) / 700;
-      const mix = clamp(elapsed, 0, 1);
+      const sceneTime = this.paused ? this.frozenTime : time;
+      const elapsed = reducedMotion.matches || this.paused ? 1 : (performance.now() - this.changedAt) / 850;
+      const linearMix = clamp(elapsed, 0, 1);
+      const mix = 1 - (1 - linearMix) ** 3;
 
       if (mix < 1 && this.previousScene !== this.scene) {
         ctx.save();
         ctx.globalAlpha = 1 - mix;
-        this.drawScene(this.previousScene, time);
+        ctx.translate(-this.transitionDirection * mix * 14, 0);
+        this.drawScene(this.previousScene, sceneTime);
         ctx.restore();
       }
 
       ctx.save();
       ctx.globalAlpha = mix;
-      this.drawScene(this.scene, time);
+      ctx.translate(this.transitionDirection * (1 - mix) * 14, 0);
+      this.drawScene(this.scene, sceneTime);
       ctx.restore();
     }
 
@@ -391,12 +717,13 @@
       const cx = width * 0.51;
       const cy = height * 0.5;
       const radius = Math.min(width, height) * 0.22;
-      const pulse = 1 + Math.sin(time * 0.8) * 0.025;
+      const pulse = 1 + Math.sin(time * 1.05) * (0.035 + this.progress * 0.025);
+      const beamStrength = 0.18 + this.progress * 0.12 + Math.sin(time * 0.9) * 0.035;
 
       const beam = ctx.createLinearGradient(0, cy, cx, cy);
       beam.addColorStop(0, "rgba(139, 182, 201, 0)");
-      beam.addColorStop(0.72, "rgba(139, 182, 201, 0.18)");
-      beam.addColorStop(1, "rgba(223, 156, 109, 0.28)");
+      beam.addColorStop(0.72, `rgba(139, 182, 201, ${beamStrength})`);
+      beam.addColorStop(1, `rgba(223, 156, 109, ${0.28 + this.progress * 0.12})`);
       ctx.fillStyle = beam;
       ctx.beginPath();
       ctx.moveTo(-20, cy - radius * 0.7);
@@ -453,8 +780,10 @@
         ctx.stroke();
       });
       nodes.forEach(([nx, ny, size], index) => {
+        const driftX = Math.cos(time * 0.65 + index * 1.7) * 2.2;
+        const driftY = Math.sin(time * 0.72 + index * 1.4) * 2.2;
         ctx.beginPath();
-        ctx.arc(nx * radius, ny * radius, size, 0, Math.PI * 2);
+        ctx.arc(nx * radius + driftX, ny * radius + driftY, size, 0, Math.PI * 2);
         ctx.fillStyle = index % 3 === 0 ? "rgba(139, 182, 201, 0.9)" : "rgba(255, 213, 171, 0.9)";
         ctx.fill();
       });
@@ -464,11 +793,12 @@
       ctx.lineWidth = 1.2;
       for (let arc = 0; arc < 3; arc += 1) {
         ctx.beginPath();
-        ctx.arc(cx, cy, radius * (1.14 + arc * 0.18), -0.85, 0.75);
+        const sweep = time * (0.045 + arc * 0.012);
+        ctx.arc(cx, cy, radius * (1.14 + arc * 0.18), -0.85 + sweep, 0.75 + sweep);
         ctx.stroke();
       }
       for (let mote = 0; mote < 14; mote += 1) {
-        const angle = mote / 14 * Math.PI * 2 + time * 0.035;
+        const angle = mote / 14 * Math.PI * 2 + time * (0.055 + this.progress * 0.025);
         const orbit = radius * (1.12 + (mote % 3) * 0.16);
         ctx.beginPath();
         ctx.arc(cx + Math.cos(angle) * orbit, cy + Math.sin(angle) * orbit, 1 + (mote % 3) * 0.45, 0, Math.PI * 2);
@@ -493,7 +823,7 @@
       ctx.arc(sunX, sunY, 11, 0, Math.PI * 2);
       ctx.stroke();
       for (let ray = 0; ray < 10; ray += 1) {
-        const angle = ray / 10 * Math.PI * 2;
+        const angle = ray / 10 * Math.PI * 2 + time * 0.08;
         ctx.beginPath();
         ctx.moveTo(sunX + Math.cos(angle) * 17, sunY + Math.sin(angle) * 17);
         ctx.lineTo(sunX + Math.cos(angle) * 25, sunY + Math.sin(angle) * 25);
@@ -501,8 +831,9 @@
       }
 
       for (let layer = 4; layer >= 0; layer -= 1) {
-        const spread = height * (0.045 + layer * 0.024);
-        const offset = (layer - 2) * height * 0.018;
+        const breath = Math.sin(time * 0.55 + layer * 1.2) * height * 0.01;
+        const spread = height * (0.045 + layer * 0.024 + this.progress * 0.018) + breath;
+        const offset = (layer - 2) * height * 0.018 + breath * 0.45;
         const gradient = ctx.createLinearGradient(sourceX, 0, endX, 0);
         gradient.addColorStop(0, `rgba(196, 91, 43, ${0.18 + layer * 0.025})`);
         gradient.addColorStop(0.48, `rgba(201, 137, 94, ${0.13 + layer * 0.018})`);
@@ -524,14 +855,14 @@
       ctx.stroke();
 
       for (let index = 0; index < 46; index += 1) {
-        const fraction = (index / 46 + time * 0.012) % 1;
+        const fraction = (index / 46 + time * (0.018 + this.progress * 0.009)) % 1;
         const x = this.cubic(sourceX, width * 0.31, width * 0.64, endX, fraction);
         const center = this.cubic(sourceY, sourceY - height * 0.26, endY + height * 0.08, endY, fraction);
         const spread = height * (0.012 + fraction * 0.11);
         const y = center + Math.sin(index * 7.7 + time * 0.5) * spread;
         ctx.beginPath();
         ctx.arc(x, y, 1.2 + (index % 4) * 0.65, 0, Math.PI * 2);
-        ctx.fillStyle = fraction < 0.52 ? "rgba(235, 159, 106, 0.58)" : "rgba(145, 181, 194, 0.38)";
+        ctx.fillStyle = fraction < 0.52 ? "rgba(235, 159, 106, 0.72)" : "rgba(145, 181, 194, 0.5)";
         ctx.fill();
       }
       this.drawFire(sourceX, sourceY, 0.72);
@@ -557,20 +888,28 @@
         const controlB = { x: width * (0.56 + offset * 0.04), y: height * (0.13 + offset * 0.1) };
         ctx.strokeStyle = member === 4 ? "rgba(232, 162, 111, 0.9)" : `rgba(139, 182, 201, ${0.12 + (4 - Math.abs(member - 4)) * 0.022})`;
         ctx.lineWidth = member === 4 ? 1.8 : 1;
+        const reveal = clamp(0.18 + this.progress * 1.04 + member * 0.015, 0, 1);
         ctx.beginPath();
         ctx.moveTo(source.x, source.y);
-        ctx.bezierCurveTo(controlA.x, controlA.y, controlB.x, controlB.y, sample.x, sample.y);
+        for (let step = 1; step <= 36 * reveal; step += 1) {
+          const fraction = step / 36;
+          const x = this.cubic(source.x, controlA.x, controlB.x, sample.x, fraction);
+          const y = this.cubic(source.y, controlA.y, controlB.y, sample.y, fraction);
+          ctx.lineTo(x, y);
+        }
         ctx.stroke();
       }
 
-      const moving = (time * 0.045) % 1;
-      const movingX = this.cubic(source.x, width * 0.31, width * 0.56, sample.x, moving);
-      const movingY = this.cubic(source.y, height * 0.75, height * 0.13, sample.y, moving);
-      this.drawGlow(movingX, movingY, 18, "rgba(235, 179, 129, 0.25)");
-      ctx.beginPath();
-      ctx.arc(movingX, movingY, 3, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(246, 190, 139, 0.96)";
-      ctx.fill();
+      for (let glint = 0; glint < 3; glint += 1) {
+        const moving = (time * (0.035 + glint * 0.006) + glint * 0.29) % 1;
+        const movingX = this.cubic(source.x, width * 0.31, width * 0.56, sample.x, moving);
+        const movingY = this.cubic(source.y, height * 0.75, height * 0.13, sample.y, moving);
+        this.drawGlow(movingX, movingY, glint === 0 ? 18 : 11, "rgba(235, 179, 129, 0.22)");
+        ctx.beginPath();
+        ctx.arc(movingX, movingY, glint === 0 ? 3 : 2, 0, Math.PI * 2);
+        ctx.fillStyle = glint === 0 ? "rgba(246, 190, 139, 0.96)" : "rgba(139, 182, 201, 0.8)";
+        ctx.fill();
+      }
 
       this.drawFire(source.x, source.y, 0.72);
       this.drawGlow(sample.x, sample.y, 32, "rgba(139, 182, 201, 0.18)");
@@ -631,15 +970,18 @@
       plume.addColorStop(0.56, "rgba(206, 144, 102, 0.4)");
       plume.addColorStop(1, "rgba(139, 182, 201, 0.12)");
       ctx.fillStyle = plume;
+      ctx.globalAlpha = 0.58 + this.progress * 0.42;
       ctx.beginPath();
       ctx.moveTo(cx - radius * 1.04, cy + radius * 0.46);
       ctx.bezierCurveTo(cx - radius * 0.38, cy + radius * 0.04, cx + radius * 0.2, cy + radius * 0.24, cx + radius * 1.05, cy - radius * 0.43);
       ctx.bezierCurveTo(cx + radius * 0.25, cy + radius * 0.02, cx - radius * 0.36, cy - radius * 0.1, cx - radius * 1.04, cy + radius * 0.46);
       ctx.fill();
+      ctx.globalAlpha = 1;
       ctx.restore();
 
       const sites = [-2.45, -1.3, -0.18, 0.82, 2.06];
-      sites.forEach((angle, index) => {
+      sites.forEach((baseAngle, index) => {
+        const angle = baseAngle + time * 0.018;
         const orbit = radius * (1.14 + (index % 2) * 0.08);
         const x = cx + Math.cos(angle) * orbit;
         const y = cy + Math.sin(angle) * orbit;
@@ -654,6 +996,15 @@
         ctx.fillStyle = index < 2 ? "rgba(223, 156, 109, 0.9)" : "rgba(139, 182, 201, 0.9)";
         ctx.fill();
       });
+
+      const glint = (time * 0.055) % 1;
+      const glintX = cx - radius * 0.86 + glint * radius * 1.72;
+      const glintY = cy + radius * (0.34 - glint * 0.7 + Math.sin(glint * Math.PI) * 0.16);
+      this.drawGlow(glintX, glintY, 19, "rgba(235, 179, 129, 0.2)");
+      ctx.beginPath();
+      ctx.arc(glintX, glintY, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(242, 188, 137, 0.9)";
+      ctx.fill();
     }
   }
 
@@ -665,173 +1016,248 @@
       this.mixing = 46;
       this.paused = false;
       this.elapsed = 0;
-      this.seeds = Array.from({ length: 130 }, (_, index) => ({
-        phase: index / 130,
-        offset: Math.sin(index * 17.17),
-        jitter: Math.sin(index * 8.73 + 2),
-        size: 0.5 + (index % 11) / 13
+
+      let randomState = 0x7ac31f2;
+      const random = () => {
+        randomState = (randomState * 1664525 + 1013904223) >>> 0;
+        return randomState / 4294967296;
+      };
+      this.seeds = Array.from({ length: 190 }, () => ({
+        phase: random(),
+        offset: random() * 2 - 1,
+        jitter: random() * Math.PI * 2,
+        size: 0.45 + random() * 1.1,
+        tone: random()
       }));
     }
 
-    draw(time, delta) {
+    normalizedState() {
+      const age = clamp((this.age - 1) / 71, 0, 1);
+      const wind = clamp((this.wind - 2) / 13, 0, 1);
+      const mixing = clamp((this.mixing - 10) / 80, 0, 1);
+      const distance = this.age * this.wind * 3.6;
+      const distanceProgress = clamp(
+        (Math.log(distance) - Math.log(7.2)) / (Math.log(3888) - Math.log(7.2)),
+        0,
+        1
+      );
+      return { age, wind, mixing, distance, distanceProgress };
+    }
+
+    metrics() {
+      const state = this.normalizedState();
+      const retained = clamp(Math.exp(-this.age / 70) * lerp(1, 0.78, state.mixing), 0.12, 0.98);
+      const spread = state.mixing < 0.28 ? "compact" : state.mixing < 0.67 ? "moderate" : "diffuse";
+      return {
+        distance: Math.round(state.distance),
+        retained,
+        spread,
+        summary: `At ${Math.round(this.age)} hours, the aircraft intercepts a ${spread} plume after about ${Math.round(state.distance)} km; it retains roughly ${Math.round(retained * 100)}% of its initial absorption.`
+      };
+    }
+
+    cubic(start, controlA, controlB, end, t) {
+      const inverse = 1 - t;
+      return inverse ** 3 * start + 3 * inverse ** 2 * t * controlA + 3 * inverse * t ** 2 * controlB + t ** 3 * end;
+    }
+
+    pathPoint(path, t) {
+      return {
+        x: this.cubic(path.start.x, path.controlA.x, path.controlB.x, path.end.x, t),
+        y: this.cubic(path.start.y, path.controlA.y, path.controlB.y, path.end.y, t)
+      };
+    }
+
+    drawPlane(x, y, scale = 1, angle = -0.12) {
+      const { ctx } = this;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "rgba(231, 232, 225, 0.92)";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(-24, 2);
+      ctx.lineTo(-5, -2);
+      ctx.lineTo(7, -20);
+      ctx.lineTo(13, -20);
+      ctx.lineTo(9, -1);
+      ctx.lineTo(31, 3);
+      ctx.lineTo(31, 8);
+      ctx.lineTo(8, 7);
+      ctx.lineTo(-2, 19);
+      ctx.lineTo(-8, 19);
+      ctx.lineTo(-4, 6);
+      ctx.lineTo(-24, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    start() {
+      if (this.paused) {
+        this.draw(performance.now() / 1000, 0);
+        return;
+      }
+      super.start();
+    }
+
+    invalidate() {
+      if (this.paused || reducedMotion.matches || !this.running) {
+        this.draw(performance.now() / 1000, 0);
+      }
+      if (!this.paused && this.visible && !document.hidden && !reducedMotion.matches && !this.running) {
+        this.start();
+      }
+    }
+
+    draw(time, delta = 0) {
       const { ctx, width, height } = this;
       if (!width || !height) return;
       if (!this.paused && !reducedMotion.matches) this.elapsed += delta;
       ctx.clearRect(0, 0, width, height);
 
-      const sourceX = width * 0.08;
-      const sourceY = height * 0.7;
-      const reach = width * clamp(0.5 + this.wind / 23 + this.age / 250, 0.58, 0.94);
-      const spread = height * (0.05 + this.mixing / 360);
-      const lift = height * (0.23 + this.wind / 100);
+      const state = this.normalizedState();
+      const source = { x: width * 0.07, y: height * 0.74 };
+      const reach = width * lerp(0.5, 0.92, state.distanceProgress);
+      const lift = height * lerp(0.18, 0.4, state.wind);
+      const spread = height * lerp(0.05, 0.3, state.mixing);
+      const dilution = lerp(1, 0.3, state.mixing);
+      const particleSpeed = lerp(0.015, 0.07, state.wind);
+      const path = {
+        start: source,
+        controlA: { x: source.x + reach * 0.32, y: source.y - lift * 0.06 },
+        controlB: { x: source.x + reach * 0.72, y: source.y - lift * 0.9 },
+        end: { x: source.x + reach, y: source.y - lift }
+      };
 
+      ctx.save();
       ctx.strokeStyle = "rgba(139, 182, 201, 0.08)";
       ctx.lineWidth = 1;
-      for (let contour = 0; contour < 5; contour += 1) {
+      ctx.setLineDash([22, 18]);
+      ctx.lineDashOffset = -this.elapsed * lerp(18, 95, state.wind);
+      for (let flow = 0; flow < 5; flow += 1) {
+        const y = height * (0.17 + flow * 0.115);
         ctx.beginPath();
-        for (let step = 0; step <= 36; step += 1) {
-          const fraction = step / 36;
-          const x = fraction * width;
-          const y = height * (0.2 + contour * 0.14) + Math.sin(fraction * 7 + contour * 1.7) * (8 + contour * 2);
-          if (step === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.setLineDash([2, 7]);
+        ctx.moveTo(width * 0.08, y + Math.sin(flow) * 7);
+        ctx.bezierCurveTo(width * 0.36, y - 18, width * 0.66, y + 22, width * 0.96, y - 8);
         ctx.stroke();
       }
       ctx.setLineDash([]);
+      ctx.restore();
 
-      const windLength = 20 + this.wind * 1.5;
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.36)";
-      ctx.fillStyle = "rgba(139, 182, 201, 0.52)";
-      for (let arrow = 0; arrow < 4; arrow += 1) {
-        const x = width * (0.16 + arrow * 0.19);
-        const y = height * 0.16 + (arrow % 2) * 8;
+      for (let layer = 5; layer >= 0; layer -= 1) {
+        const layerScale = 0.28 + layer * 0.14;
+        const breathing = Math.sin(this.elapsed * 0.55 + layer * 1.1) * spread * 0.025;
+        const layerSpread = spread * layerScale + breathing;
+        const gradient = ctx.createLinearGradient(source.x, source.y, path.end.x, path.end.y);
+        gradient.addColorStop(0, `rgba(220, 111, 57, ${(0.2 + layer * 0.018) * dilution})`);
+        gradient.addColorStop(0.48, `rgba(190, 137, 104, ${(0.13 + layer * 0.012) * dilution})`);
+        gradient.addColorStop(1, `rgba(105, 151, 170, ${(0.08 + layer * 0.009) * dilution})`);
         ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + windLength, y - windLength * 0.3);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x + windLength, y - windLength * 0.3);
-        ctx.lineTo(x + windLength - 6, y - windLength * 0.3 - 2);
-        ctx.lineTo(x + windLength - 4, y - windLength * 0.3 + 4);
+        ctx.moveTo(source.x, source.y - 3);
+        ctx.bezierCurveTo(path.controlA.x, path.controlA.y - layerSpread * 0.28, path.controlB.x, path.controlB.y - layerSpread, path.end.x, path.end.y - layerSpread * 0.72);
+        ctx.bezierCurveTo(path.controlB.x, path.controlB.y + layerSpread, path.controlA.x, path.controlA.y + layerSpread * 0.5, source.x, source.y + 3);
         ctx.closePath();
+        ctx.fillStyle = gradient;
         ctx.fill();
       }
-
-      const plumeGradient = ctx.createLinearGradient(sourceX, sourceY, sourceX + reach, sourceY - lift);
-      plumeGradient.addColorStop(0, "rgba(211, 115, 63, 0.22)");
-      plumeGradient.addColorStop(0.48, "rgba(175, 132, 101, 0.12)");
-      plumeGradient.addColorStop(1, "rgba(91, 136, 163, 0.05)");
-      ctx.beginPath();
-      ctx.moveTo(sourceX, sourceY - 4);
-      ctx.bezierCurveTo(width * 0.3, sourceY - lift * 0.06 - spread * 0.4, width * 0.56, sourceY - lift * 0.92 - spread, sourceX + reach, sourceY - lift - spread * 0.7);
-      ctx.lineTo(sourceX + reach, sourceY - lift + spread * 0.85);
-      ctx.bezierCurveTo(width * 0.55, sourceY - lift * 0.45 + spread, width * 0.3, sourceY + spread * 0.6, sourceX, sourceY + 4);
-      ctx.closePath();
-      ctx.fillStyle = plumeGradient;
-      ctx.fill();
 
       ctx.save();
       ctx.globalCompositeOperation = "screen";
       this.seeds.forEach((seed, index) => {
-        const speed = 0.025 + this.wind * 0.0011;
-        const life = (seed.phase + this.elapsed * speed) % 1;
-        const ageFade = clamp(1 - this.age / 105, 0.22, 0.98);
-        const x = sourceX + life * reach;
-        const plumeCenter = sourceY - Math.pow(life, 0.72) * lift;
-        const y = plumeCenter + seed.offset * spread * (0.2 + life) + Math.sin(this.elapsed * 0.7 + index) * 3;
-        const radius = (2.5 + life * 16) * seed.size;
-        const alpha = Math.sin(Math.PI * life) * ageFade;
+        const life = (seed.phase + this.elapsed * particleSpeed) % 1;
+        const center = this.pathPoint(path, life);
+        const localSpread = spread * (0.12 + life * 0.9);
+        const y = center.y + seed.offset * localSpread + Math.sin(this.elapsed * 0.9 + seed.jitter) * (2 + state.mixing * 5);
+        const radius = (2 + life * 15) * seed.size * lerp(0.75, 1.22, state.mixing);
+        const alpha = Math.sin(Math.PI * life) * dilution;
+        const aged = clamp(state.age * 0.64 + life * 0.45, 0, 1);
+        const red = Math.round(lerp(219, 135, aged));
+        const green = Math.round(lerp(126, 169, aged));
+        const blue = Math.round(lerp(76, 182, aged));
         ctx.beginPath();
-        ctx.ellipse(x, y, radius * 1.5, radius * 0.65, -0.3, 0, Math.PI * 2);
-        ctx.fillStyle = index % 5 === 0
-          ? `rgba(211, 126, 76, ${alpha * 0.13})`
-          : `rgba(152, 173, 183, ${alpha * 0.09})`;
+        ctx.ellipse(center.x, y, radius * 1.55, radius * 0.62, -0.25, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha * (seed.tone > 0.7 ? 0.17 : 0.1)})`;
         ctx.fill();
       });
       ctx.restore();
 
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.26)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([2, 7]);
+      ctx.strokeStyle = "rgba(223, 179, 137, 0.55)";
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.moveTo(sourceX, sourceY);
-      ctx.bezierCurveTo(width * 0.32, sourceY - lift * 0.15, width * 0.55, sourceY - lift * 0.86, sourceX + reach, sourceY - lift);
+      ctx.moveTo(path.start.x, path.start.y);
+      ctx.bezierCurveTo(path.controlA.x, path.controlA.y, path.controlB.x, path.controlB.y, path.end.x, path.end.y);
       ctx.stroke();
-      ctx.setLineDash([]);
 
-      [0.25, 0.5, 0.75].forEach((fraction, index) => {
-        const x = sourceX + reach * fraction;
-        const y = sourceY - Math.pow(fraction, 0.72) * lift;
+      [0.25, 0.5, 0.75].forEach((fraction) => {
+        const point = this.pathPoint(path, fraction);
         ctx.beginPath();
-        ctx.arc(x, y, 2.4, 0, Math.PI * 2);
-        ctx.fillStyle = index < 2 ? "rgba(223, 156, 109, 0.72)" : "rgba(139, 182, 201, 0.78)";
+        ctx.arc(point.x, point.y, 2.8, 0, Math.PI * 2);
+        ctx.fillStyle = fraction < 0.6 ? "rgba(238, 164, 108, 0.9)" : "rgba(139, 182, 201, 0.9)";
         ctx.fill();
-        ctx.fillStyle = "rgba(152, 164, 170, 0.58)";
-        ctx.font = "7px 'IBM Plex Mono', monospace";
-        ctx.fillText(`${Math.round(this.age * fraction)} h`, x + 6, y - 7);
+        ctx.fillStyle = "rgba(182, 191, 193, 0.72)";
+        ctx.font = "9px 'IBM Plex Mono', monospace";
+        ctx.fillText(`${Math.max(1, Math.round(this.age * fraction))} h`, point.x + 8, point.y - 8);
       });
 
-      const sourceGlow = ctx.createRadialGradient(sourceX, sourceY, 0, sourceX, sourceY, 34);
-      sourceGlow.addColorStop(0, "rgba(238, 157, 94, 0.5)");
+      const sourceGlow = ctx.createRadialGradient(source.x, source.y, 0, source.x, source.y, 48);
+      sourceGlow.addColorStop(0, "rgba(247, 173, 108, 0.78)");
+      sourceGlow.addColorStop(0.26, "rgba(210, 101, 49, 0.24)");
       sourceGlow.addColorStop(1, "rgba(191, 106, 61, 0)");
       ctx.fillStyle = sourceGlow;
       ctx.beginPath();
-      ctx.arc(sourceX, sourceY, 34, 0, Math.PI * 2);
+      ctx.arc(source.x, source.y, 48, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "rgba(223, 156, 109, 0.95)";
+      ctx.fillStyle = "rgba(255, 188, 119, 0.96)";
       ctx.beginPath();
-      ctx.moveTo(sourceX - 4, sourceY + 5);
-      ctx.quadraticCurveTo(sourceX - 7, sourceY - 5, sourceX, sourceY - 13);
-      ctx.quadraticCurveTo(sourceX + 8, sourceY - 3, sourceX + 5, sourceY + 5);
-      ctx.closePath();
+      ctx.arc(source.x, source.y, 5, 0, Math.PI * 2);
       ctx.fill();
 
-      const sampleX = sourceX + reach * clamp(this.age / 54, 0.15, 0.96);
-      const sampleY = sourceY - Math.pow(clamp(this.age / 54, 0.15, 0.96), 0.72) * lift;
-      ctx.strokeStyle = "rgba(231, 229, 218, 0.2)";
+      const sampleProgress = lerp(0.12, 0.95, state.age);
+      const sample = this.pathPoint(path, sampleProgress);
+      const gateHeight = clamp(spread * (0.8 + sampleProgress * 0.7), 28, height * 0.3);
+      ctx.strokeStyle = "rgba(224, 227, 221, 0.28)";
       ctx.setLineDash([3, 5]);
       ctx.beginPath();
-      ctx.moveTo(sampleX - 54, sampleY + 28);
-      ctx.lineTo(sampleX + 56, sampleY - 28);
+      ctx.moveTo(sample.x, sample.y - gateHeight);
+      ctx.lineTo(sample.x, sample.y + gateHeight);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.strokeStyle = "rgba(231, 229, 218, 0.7)";
       ctx.beginPath();
-      ctx.arc(sampleX, sampleY, 8, 0, Math.PI * 2);
+      ctx.arc(sample.x, sample.y, 11, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(139, 182, 201, 0.88)";
+      ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(sampleX - 12, sampleY);
-      ctx.lineTo(sampleX + 12, sampleY);
-      ctx.moveTo(sampleX, sampleY - 12);
-      ctx.lineTo(sampleX, sampleY + 12);
-      ctx.stroke();
-      ctx.fillStyle = "rgba(231, 229, 218, 0.8)";
+      this.drawPlane(sample.x - 4, sample.y - 30, width < 620 ? 0.52 : 0.65);
+
+      ctx.fillStyle = "rgba(221, 222, 215, 0.82)";
       ctx.font = "9px 'IBM Plex Mono', monospace";
-      ctx.fillText("SAMPLE", clamp(sampleX + 12, 8, width - 54), sampleY + 3);
+      ctx.textAlign = sample.x > width * 0.75 ? "right" : "left";
+      ctx.fillText(`SAMPLE / +${Math.round(this.age)} H`, sample.x + (sample.x > width * 0.75 ? -15 : 15), sample.y + gateHeight + 18);
+      ctx.textAlign = "left";
     }
   }
 
   function setupHeroPlume() {
     const canvas = document.querySelector("[data-hero-plume]");
     const hero = canvas.closest(".hero");
-    const plume = new PlumeSurface(canvas, {
-      sourceX: 0.84,
-      sourceY: 0.83,
-      direction: -1,
-      density: window.innerWidth < 720 ? 90 : 180,
-      showSource: true
-    });
+    const plume = new HeroPlumeSurface(canvas);
+    const canInteract = window.matchMedia("(hover: hover) and (pointer: fine)").matches && !reducedMotion.matches;
 
-    hero.addEventListener("pointermove", (event) => {
-      const rect = hero.getBoundingClientRect();
-      const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
-      const y = clamp((event.clientY - rect.top) / rect.height, 0, 1);
-      plume.setPointer(x, y, true);
-    }, { passive: true });
+    if (canInteract) {
+      hero.addEventListener("pointermove", (event) => {
+        const rect = hero.getBoundingClientRect();
+        const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+        const y = clamp((event.clientY - rect.top) / Math.min(rect.height, window.innerHeight), 0, 1);
+        plume.setPointer(x, y, true);
+      }, { passive: true });
 
-    hero.addEventListener("pointerleave", () => plume.setPointer(0.5, 0.5, false));
+      hero.addEventListener("pointerleave", () => plume.setPointer(0.72, 0.44, false));
+      hero.addEventListener("pointercancel", () => plume.setPointer(0.72, 0.44, false));
+      window.addEventListener("blur", () => plume.setPointer(0.72, 0.44, false));
+    }
     plume.start();
   }
 
@@ -841,6 +1267,8 @@
     const index = document.querySelector("[data-scene-index]");
     const kicker = document.querySelector("[data-scene-kicker]");
     const caption = document.querySelector("[data-scene-caption]");
+    const motionToggle = document.querySelector("[data-research-motion]");
+    const motionLabel = document.querySelector("[data-research-motion-label]");
     const steps = [...document.querySelectorAll("[data-scene]")];
     const model = new ModelSurface(canvas);
     const scenes = {
@@ -908,6 +1336,11 @@
       });
 
       activate(next);
+      if (next) {
+        const activeRect = next.getBoundingClientRect();
+        const progress = clamp((anchorY - activeRect.top) / Math.max(activeRect.height, 1), 0, 1);
+        model.setProgress(progress);
+      }
     };
 
     const queueSync = () => {
@@ -920,6 +1353,14 @@
     window.addEventListener("resize", queueSync);
     window.addEventListener("pageshow", queueSync);
     document.fonts?.ready.then(queueSync);
+    motionToggle.addEventListener("click", () => {
+      const paused = motionToggle.getAttribute("aria-pressed") !== "true";
+      motionToggle.setAttribute("aria-pressed", String(paused));
+      motionToggle.setAttribute("aria-label", paused ? "Resume research animation" : "Pause research animation");
+      motionToggle.querySelector("span:first-child").textContent = paused ? "▶" : "Ⅱ";
+      motionLabel.textContent = paused ? "Resume animation" : "Pause animation";
+      model.setPaused(paused);
+    });
     activate(steps[0]);
     queueSync();
     model.start();
@@ -937,6 +1378,9 @@
     const mixingOutput = document.querySelector("[data-mixing-output]");
     const distanceOutput = document.querySelector("[data-distance-output]");
     const absorptionOutput = document.querySelector("[data-absorption-output]");
+    const spreadOutput = document.querySelector("[data-spread-output]");
+    const summary = document.querySelector("[data-lab-summary]");
+    const presets = [...document.querySelectorAll("[data-lab-preset]")];
     const toggle = document.querySelector("[data-lab-toggle]");
     const status = document.querySelector("[data-lab-status]");
 
@@ -944,16 +1388,44 @@
       lab.age = Number(age.value);
       lab.wind = Number(wind.value);
       lab.mixing = Number(mixing.value);
-      ageOutput.textContent = `${lab.age} h`;
-      ageLabel.textContent = `+${lab.age} H`;
+      const metrics = lab.metrics();
+      ageOutput.textContent = `${Math.round(lab.age)} h`;
+      ageLabel.textContent = `+${Math.round(lab.age)} H`;
       windOutput.textContent = `${lab.wind.toFixed(1)} m s⁻¹`;
       mixingOutput.textContent = `${lab.mixing}%`;
-      distanceOutput.textContent = `${Math.round(lab.wind * lab.age * 3.6)} km`;
-      absorptionOutput.textContent = Math.max(0.18, Math.exp(-lab.age / 70) * (1 - lab.mixing / 380)).toFixed(2);
-      lab.draw(performance.now() / 1000, 0);
+      distanceOutput.textContent = `${metrics.distance} km`;
+      absorptionOutput.textContent = `${Math.round(metrics.retained * 100)}%`;
+      spreadOutput.textContent = metrics.spread;
+      summary.textContent = metrics.summary;
+
+      [age, wind, mixing].forEach((control) => {
+        const progress = (Number(control.value) - Number(control.min)) / (Number(control.max) - Number(control.min)) * 100;
+        control.style.setProperty("--range-progress", `${progress}%`);
+      });
+      age.setAttribute("aria-valuetext", `${Math.round(lab.age)} hours transport age`);
+      wind.setAttribute("aria-valuetext", `${lab.wind.toFixed(1)} metres per second wind speed`);
+      mixing.setAttribute("aria-valuetext", `${lab.mixing} percent mixing`);
+      lab.invalidate();
     };
 
-    [age, wind, mixing].forEach((control) => control.addEventListener("input", sync));
+    [age, wind, mixing].forEach((control) => control.addEventListener("input", () => {
+      presets.forEach((preset) => {
+        preset.classList.remove("is-active");
+        preset.setAttribute("aria-pressed", "false");
+      });
+      sync();
+    }));
+    presets.forEach((preset) => preset.addEventListener("click", () => {
+      age.value = preset.dataset.ageValue;
+      wind.value = preset.dataset.windValue;
+      mixing.value = preset.dataset.mixingValue;
+      presets.forEach((candidate) => {
+        const active = candidate === preset;
+        candidate.classList.toggle("is-active", active);
+        candidate.setAttribute("aria-pressed", String(active));
+      });
+      sync();
+    }));
     toggle.addEventListener("click", () => {
       lab.paused = !lab.paused;
       toggle.setAttribute("aria-pressed", String(lab.paused));
@@ -961,9 +1433,19 @@
         ? '<span aria-hidden="true">▶</span> Resume motion'
         : '<span aria-hidden="true">Ⅱ</span> Pause motion';
       status.textContent = lab.paused ? "PAUSED" : "PLAYING";
-      if (!lab.paused) lab.start();
+      if (lab.paused) {
+        lab.stop();
+        lab.invalidate();
+      } else {
+        lab.start();
+      }
     });
 
+    if (reducedMotion.matches) {
+      lab.paused = true;
+      toggle.hidden = true;
+      status.textContent = "MOTION REDUCED";
+    }
     sync();
     lab.start();
   }
