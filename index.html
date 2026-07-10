@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111820">
+  <meta name="description" content="Max Harvey is an atmospheric scientist at ETH Zurich studying biomass-burning aerosol, plume evolution, and climate models.">
+  <meta name="author" content="Max Harvey">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Max Harvey | Atmospheric Science">
+  <meta property="og:description" content="Following smoke from emission to climate through observations, trajectories, and models.">
+  <meta property="og:url" content="https://maxcharvey.github.io/">
+  <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="https://maxcharvey.github.io/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Instrument+Sans:wdth,wght@75..100,400..600&amp;family=Newsreader:opsz,wght@6..72,300..600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <title>Max Harvey | Atmospheric Science</title>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      "name": "Max Harvey",
+      "url": "https://maxcharvey.github.io/",
+      "email": "mailto:max.harvey@env.ethz.ch",
+      "jobTitle": "Atmospheric scientist",
+      "affiliation": {
+        "@type": "Organization",
+        "name": "ETH Zurich",
+        "url": "https://ethz.ch/"
+      },
+      "sameAs": [
+        "https://github.com/maxcharvey",
+        "https://iac.ethz.ch/people-iac/person-detail.MzcwNDc2.TGlzdC82MzcsLTE5NDE2NTk2NTg%3D.html"
+      ]
+    }
+  </script>
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header" data-header>
+    <a class="wordmark" href="#top" aria-label="Max Harvey, home">
+      <svg viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="7" cy="21" r="3"></circle>
+        <path d="M8 20c4-9 9-9 14-13"></path>
+        <path d="M11 23c5-6 9-5 15-8"></path>
+      </svg>
+      <span>Max <i>Harvey</i></span>
+    </a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle>
+      <span>Menu</span>
+      <span class="nav-toggle-lines" aria-hidden="true"></span>
+    </button>
+    <nav class="site-nav" id="site-nav" aria-label="Primary" data-nav>
+      <a href="#research">Research</a>
+      <a href="#projects">Projects</a>
+      <a href="#methods">Methods</a>
+      <a href="#about">About</a>
+      <a class="nav-contact" href="mailto:max.harvey@env.ethz.ch">Contact <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <canvas class="hero-plume" data-hero-plume aria-hidden="true"></canvas>
+      <div class="hero-wash" aria-hidden="true"></div>
+      <svg class="trajectory trajectory-a" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M-80 610 Q310 540 610 390 T1480 120"></path>
+      </svg>
+      <svg class="trajectory trajectory-b" viewBox="0 0 1400 700" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M-100 670 Q360 610 760 470 T1500 280"></path>
+      </svg>
+
+      <div class="hero-inner shell">
+        <div class="hero-copy">
+          <p class="kicker reveal">Atmospheric chemistry <span></span> Aerosols <span></span> Climate</p>
+          <h1 id="hero-title" class="reveal">Smoke changes as it travels. <em>I follow what that means for climate.</em></h1>
+          <p class="hero-lede reveal">I’m Max Harvey, an atmospheric scientist at ETH Zürich. I connect aircraft observations, air-mass trajectories, and global models to understand the life cycle of biomass-burning aerosol.</p>
+          <div class="hero-actions reveal">
+            <a class="button button-primary" href="#research">Trace the research <span aria-hidden="true">↓</span></a>
+            <a class="button button-ghost" href="https://iac.ethz.ch/people-iac/person-detail.MzcwNDc2.TGlzdC82MzcsLTE5NDE2NTk2NTg%3D.html" target="_blank" rel="noreferrer">ETH profile <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+
+        <aside class="hero-monitor reveal" aria-label="Animated plume status">
+          <div class="monitor-head">
+            <span>LIVE PLUME / CONCEPTUAL</span>
+            <span class="live-dot">RUNNING</span>
+          </div>
+          <dl>
+            <div><dt>source</dt><dd>biomass burning</dd></div>
+            <div><dt>transport</dt><dd data-wind-readout>ENE · 7.2 m s⁻¹</dd></div>
+            <div><dt>state</dt><dd data-state-readout>aging / dispersing</dd></div>
+          </dl>
+          <p>Move your pointer through the plume to perturb its flow.</p>
+        </aside>
+
+        <div class="hero-scale reveal" aria-label="Research scales from particles to climate">
+          <span class="scale-title">Across scales</span>
+          <ol>
+            <li><b>01</b><span>Particles</span><small>~0.1 µm</small></li>
+            <li><b>02</b><span>Plumes</span><small>hours–days</small></li>
+            <li><b>03</b><span>Models</span><small>global grids</small></li>
+            <li><b>04</b><span>Climate</span><small>radiative effect</small></li>
+          </ol>
+        </div>
+      </div>
+
+      <a class="scroll-cue" href="#research" aria-label="Scroll to research">
+        <span>Scroll to trace</span><i aria-hidden="true"></i>
+      </a>
+    </section>
+
+    <section class="research section-paper" id="research" aria-labelledby="research-title">
+      <div class="section-intro shell reveal">
+        <p class="kicker ink">Research thread / 01–04</p>
+        <h2 id="research-title">One atmospheric story,<br><em>four connected scales.</em></h2>
+        <p>Brown carbon is the light-absorbing fraction of organic smoke. Its climate effect depends on what is emitted, how it transforms, where it travels, and whether models capture those changes.</p>
+      </div>
+
+      <div class="story shell">
+        <div class="story-steps">
+          <article class="story-step reveal is-active" data-scene="particle">
+            <p class="step-number">01 / PARTICLE</p>
+            <h3>What absorbs the light?</h3>
+            <p>Fire emits a changing mixture of organic compounds. I work on translating that chemistry into optical properties a global model can carry.</p>
+            <ul class="tag-list" aria-label="Particle research methods"><li>Brown carbon</li><li>Optics</li><li>Emissions</li></ul>
+          </article>
+          <article class="story-step reveal" data-scene="plume">
+            <p class="step-number">02 / PLUME</p>
+            <h3>How does smoke age?</h3>
+            <p>Sunlight, oxidants, temperature, and phase state reshape absorption during transport. Competing bleaching schemes turn those processes into testable hypotheses.</p>
+            <ul class="tag-list" aria-label="Plume research methods"><li>Photochemistry</li><li>Viscosity</li><li>Aircraft data</li></ul>
+          </article>
+          <article class="story-step reveal" data-scene="trajectory">
+            <p class="step-number">03 / TRANSPORT</p>
+            <h3>Where did this air come from?</h3>
+            <p>Lagrangian trajectories connect individual samples back to candidate fires, providing a physical clock for plume age and source contact.</p>
+            <ul class="tag-list" aria-label="Transport research methods"><li>LAGRANTO</li><li>ERA5</li><li>Source attribution</li></ul>
+          </article>
+          <article class="story-step reveal" data-scene="grid">
+            <p class="step-number">04 / MODEL</p>
+            <h3>Does the global picture close?</h3>
+            <p>GEOS-Chem links local process understanding to global aerosol burden and optical effects. Observations then reveal where that structure succeeds or fails.</p>
+            <ul class="tag-list" aria-label="Model research methods"><li>GEOS-Chem</li><li>Evaluation</li><li>Radiative effects</li></ul>
+          </article>
+        </div>
+
+        <aside class="story-visual" aria-label="Animated visualization of the active research scale">
+          <div class="visual-chrome">
+            <span data-scene-label>PARTICLE OPTICS</span>
+            <span>CONCEPT MODEL v0.4</span>
+          </div>
+          <canvas data-model-canvas aria-hidden="true"></canvas>
+          <div class="visual-axis"><span>emission</span><span>transport</span><span>evaluation</span></div>
+          <div class="visual-legend"><i></i><span>absorbing aerosol</span><i></i><span>air-mass path</span></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="plume-lab" id="methods" aria-labelledby="lab-title">
+      <div class="lab-backdrop" aria-hidden="true"></div>
+      <div class="shell lab-layout">
+        <div class="lab-copy reveal">
+          <p class="kicker">Interactive method / conceptual</p>
+          <h2 id="lab-title">A plume is not a static object.</h2>
+          <p>Explore how transport time, wind, and mixing change a stylized smoke plume. This is an explanatory sketch, not a scientific simulation.</p>
+          <p class="lab-note"><span aria-hidden="true">↳</span> The same questions drive the real workflow: locate a source, quantify transport, then evaluate chemical change.</p>
+        </div>
+
+        <div class="lab-console reveal">
+          <div class="lab-screen">
+            <div class="lab-screen-head"><span>PLUME TRANSPORT SKETCH</span><span data-lab-status>PLAYING</span></div>
+            <canvas data-lab-canvas aria-label="Interactive conceptual smoke plume"></canvas>
+            <div class="lab-scale"><span>SOURCE / t₀</span><span data-age-label>+18 H</span><span>DOWNWIND</span></div>
+          </div>
+          <div class="lab-controls">
+            <label>
+              <span>Transport age <output for="age" data-age-output>18 h</output></span>
+              <input id="age" data-age type="range" min="1" max="72" value="18">
+            </label>
+            <label>
+              <span>Wind speed <output for="wind" data-wind-output>7.2 m s⁻¹</output></span>
+              <input id="wind" data-wind type="range" min="2" max="15" value="7.2" step="0.1">
+            </label>
+            <label>
+              <span>Mixing <output for="mixing" data-mixing-output>46%</output></span>
+              <input id="mixing" data-mixing type="range" min="10" max="90" value="46">
+            </label>
+            <button class="lab-toggle" type="button" data-lab-toggle aria-pressed="false"><span aria-hidden="true">Ⅱ</span> Pause motion</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="projects section-paper" id="projects" aria-labelledby="projects-title">
+      <div class="section-heading shell reveal">
+        <div>
+          <p class="kicker ink">Active work / selected</p>
+          <h2 id="projects-title">Current threads</h2>
+        </div>
+        <p>Projects connect process-scale aerosol chemistry to transport histories and global model behaviour.</p>
+      </div>
+
+      <div class="project-list shell">
+        <article class="project reveal">
+          <div class="project-index"><span>01</span><i></i></div>
+          <div class="project-main">
+            <p class="project-type">MODEL DEVELOPMENT · ACTIVE</p>
+            <h3>Brown carbon in GEOS-Chem</h3>
+            <p>A physically grounded representation of biomass-burning organic aerosol, spanning emission, chemical aging, persistence, and evolving light absorption.</p>
+          </div>
+          <dl class="project-meta">
+            <div><dt>Question</dt><dd>How much absorbing organic aerosol persists?</dd></div>
+            <div><dt>Approach</dt><dd>GEOS-Chem Classic · scheme ensemble</dd></div>
+          </dl>
+        </article>
+
+        <article class="project reveal">
+          <div class="project-index"><span>02</span><i></i></div>
+          <div class="project-main">
+            <p class="project-type">OBSERVATION × MODEL · ACTIVE</p>
+            <h3>Aircraft constraints on smoke aging</h3>
+            <p>FIREX-AQ and WE-CAN measurements provide a moving laboratory for testing alternative descriptions of bleaching and phase-state-limited chemistry.</p>
+          </div>
+          <dl class="project-meta">
+            <div><dt>Question</dt><dd>Which aging mechanisms match observed plumes?</dd></div>
+            <div><dt>Approach</dt><dd>Aircraft data · multi-scheme evaluation</dd></div>
+          </dl>
+        </article>
+
+        <article class="project reveal">
+          <div class="project-index"><span>03</span><i></i></div>
+          <div class="project-main">
+            <p class="project-type">LAGRANGIAN METHODS · ACTIVE</p>
+            <h3>Physical plume age from trajectories</h3>
+            <p>Ensemble air-mass histories connect aircraft samples to fire activity, with explicit uncertainty around source contact and transport time.</p>
+          </div>
+          <dl class="project-meta">
+            <div><dt>Question</dt><dd>How old is the smoke at measurement time?</dd></div>
+            <div><dt>Approach</dt><dd>LAGRANTO · ERA5 · fire attribution</dd></div>
+          </dl>
+        </article>
+
+        <article class="project reveal">
+          <div class="project-index"><span>04</span><i></i></div>
+          <div class="project-main">
+            <p class="project-type">OPTICAL EVALUATION · ACTIVE</p>
+            <h3>Closing the loop on aerosol optics</h3>
+            <p>Offline optical calculations bridge modelled aerosol composition to AOD, absorption AOD, and single-scattering albedo observations.</p>
+          </div>
+          <dl class="project-meta">
+            <div><dt>Question</dt><dd>Do simulated species produce credible optics?</dd></div>
+            <div><dt>Approach</dt><dd>offAOD · AERONET · model diagnostics</dd></div>
+          </dl>
+        </article>
+      </div>
+    </section>
+
+    <section class="outputs" id="outputs" aria-labelledby="outputs-title">
+      <div class="shell outputs-grid">
+        <div class="outputs-copy reveal">
+          <p class="kicker">Outputs / evolving</p>
+          <h2 id="outputs-title">Work in progress,<br>made visible.</h2>
+        </div>
+        <div class="output-status reveal">
+          <span class="status-mark" aria-hidden="true">↗</span>
+          <div>
+            <p class="status-label">PUBLICATIONS &amp; CV</p>
+            <h3>Selected outputs will appear here.</h3>
+            <p>This site is being assembled alongside the research. Publication records, talks, posters, and a downloadable CV can be added without changing the design.</p>
+          </div>
+          <a href="https://github.com/maxcharvey" target="_blank" rel="noreferrer">In the meantime, view code on GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="about section-paper" id="about" aria-labelledby="about-title">
+      <div class="shell about-layout">
+        <div class="about-aside reveal">
+          <div class="portrait-placeholder" role="img" aria-label="Portrait placeholder for Max Harvey">
+            <svg viewBox="0 0 320 420" aria-hidden="true">
+              <path d="M-20 360Q90 250 170 260T350 100"></path>
+              <path d="M-40 405Q100 300 205 290T365 150"></path>
+              <circle cx="170" cy="260" r="5"></circle>
+            </svg>
+            <span>PORTRAIT / FORTHCOMING</span>
+          </div>
+          <dl class="about-facts">
+            <div><dt>Based at</dt><dd>ETH Zürich · IAC</dd></div>
+            <div><dt>Works with</dt><dd>Observations · trajectories · models</dd></div>
+            <div><dt>Focus</dt><dd>Biomass-burning aerosol</dd></div>
+          </dl>
+        </div>
+
+        <div class="about-copy reveal">
+          <p class="kicker ink">About / Max Harvey</p>
+          <h2 id="about-title">Atmospheric science across the gaps between disciplines.</h2>
+          <p class="about-lede">My work sits where aerosol chemistry, atmospheric transport, scientific computing, and climate modelling meet.</p>
+          <div class="about-columns">
+            <p>I’m interested in what happens between a field measurement and a global conclusion: how a plume is identified, how its history is reconstructed, how uncertain mechanisms become model code, and how that model is confronted with observations.</p>
+            <p>Alongside research, I work with high-performance computing for weather and climate, including parallel programming, performance analysis, and reproducible scientific workflows.</p>
+          </div>
+          <div class="about-links">
+            <a href="https://iac.ethz.ch/people-iac/person-detail.MzcwNDc2.TGlzdC82MzcsLTE5NDE2NTk2NTg%3D.html" target="_blank" rel="noreferrer">ETH profile <span aria-hidden="true">↗</span></a>
+            <a href="https://github.com/maxcharvey" target="_blank" rel="noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="contact" id="contact" aria-labelledby="contact-title">
+      <canvas class="contact-plume" data-contact-plume aria-hidden="true"></canvas>
+      <div class="shell contact-inner reveal">
+        <p class="kicker">Contact / Zürich</p>
+        <h2 id="contact-title">Have a plume, a model,<br>or a question?</h2>
+        <a class="contact-email" href="mailto:max.harvey@env.ethz.ch">max.harvey@env.ethz.ch <span aria-hidden="true">↗</span></a>
+        <div class="contact-meta">
+          <p>Atmospheric Chemistry<br>Institute for Atmospheric and Climate Science<br>ETH Zürich</p>
+          <p>CHN O 17.2<br>Universitätstrasse 16<br>8092 Zürich, Switzerland</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-grid">
+      <a class="wordmark footer-mark" href="#top"><span>Max <i>Harvey</i></span></a>
+      <p>Particles → plumes → models → climate</p>
+      <div class="footer-links">
+        <a href="mailto:max.harvey@env.ethz.ch">Email</a>
+        <a href="https://github.com/maxcharvey" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://ethz.ch/" target="_blank" rel="noreferrer">ETH Zürich</a>
+      </div>
+      <p class="copyright">© <span data-year>2026</span> Max Harvey</p>
+    </div>
+  </footer>
+</body>
+</html>

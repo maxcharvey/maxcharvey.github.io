@@ -1,0 +1,16 @@
+{
+  "name": "Max Harvey | Atmospheric Science",
+  "short_name": "Max Harvey",
+  "description": "Atmospheric science across particles, plumes, models, and climate.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101720",
+  "theme_color": "#101720",
+  "icons": [
+    {
+      "src": "/assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
