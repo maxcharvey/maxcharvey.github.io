@@ -273,11 +273,6 @@
         ctx.fill();
         ctx.restore();
 
-        ctx.font = "8px 'IBM Plex Mono', monospace";
-        ctx.fillStyle = "rgba(223, 210, 194, 0.48)";
-        ctx.textAlign = direction > 0 ? "left" : "right";
-        ctx.fillText("FIRE SOURCE / t₀", sourceX + direction * 14, sourceY + 22);
-        ctx.textAlign = "left";
       }
     }
   }
@@ -325,358 +320,340 @@
       if (scene === "grid") this.drawGrid(time);
     }
 
-    drawPlotFrame(x, y, width, height, xLabel, yLabel) {
-      const { ctx } = this;
-      ctx.save();
-      ctx.strokeStyle = "rgba(220, 224, 220, 0.2)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x, y + height);
-      ctx.lineTo(x + width, y + height);
-      ctx.stroke();
-
-      ctx.strokeStyle = "rgba(220, 224, 220, 0.07)";
-      for (let tick = 1; tick < 4; tick += 1) {
-        const tickX = x + width * tick / 4;
-        const tickY = y + height * tick / 4;
-        ctx.beginPath();
-        ctx.moveTo(tickX, y);
-        ctx.lineTo(tickX, y + height);
-        ctx.moveTo(x, tickY);
-        ctx.lineTo(x + width, tickY);
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = "rgba(159, 170, 175, 0.62)";
-      ctx.font = "7px 'IBM Plex Mono', monospace";
-      ctx.textAlign = "right";
-      ctx.fillText(xLabel, x + width, y + height + 16);
-      ctx.save();
-      ctx.translate(x - 14, y);
-      ctx.rotate(-Math.PI / 2);
-      ctx.textAlign = "right";
-      ctx.fillText(yLabel, 0, 0);
-      ctx.restore();
-      ctx.textAlign = "left";
-      ctx.restore();
-    }
-
     cubic(start, controlA, controlB, end, t) {
       const inv = 1 - t;
       return inv ** 3 * start + 3 * inv ** 2 * t * controlA + 3 * inv * t ** 2 * controlB + t ** 3 * end;
     }
 
+    drawGlow(x, y, radius, inner, outer = "rgba(0, 0, 0, 0)") {
+      const { ctx } = this;
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      glow.addColorStop(0, inner);
+      glow.addColorStop(1, outer);
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    drawFire(x, y, scale = 1) {
+      const { ctx } = this;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      this.drawGlow(0, 0, 34, "rgba(223, 156, 109, 0.32)");
+      ctx.fillStyle = "rgba(223, 156, 109, 0.96)";
+      ctx.beginPath();
+      ctx.moveTo(-5, 8);
+      ctx.bezierCurveTo(-11, -3, 0, -10, 3, -22);
+      ctx.bezierCurveTo(11, -10, 14, 0, 7, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 218, 175, 0.9)";
+      ctx.beginPath();
+      ctx.moveTo(-1, 7);
+      ctx.quadraticCurveTo(-4, 0, 3, -8);
+      ctx.quadraticCurveTo(8, 2, 4, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    drawPlane(x, y, scale = 1, angle = -0.16) {
+      const { ctx } = this;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "rgba(226, 229, 224, 0.9)";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.moveTo(-30, 2);
+      ctx.lineTo(-6, -2);
+      ctx.lineTo(8, -25);
+      ctx.lineTo(15, -25);
+      ctx.lineTo(10, -1);
+      ctx.lineTo(38, 3);
+      ctx.lineTo(38, 8);
+      ctx.lineTo(9, 7);
+      ctx.lineTo(-3, 23);
+      ctx.lineTo(-10, 23);
+      ctx.lineTo(-5, 6);
+      ctx.lineTo(-30, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
     drawParticle(time) {
       const { ctx, width, height } = this;
-      const cx = width * 0.29;
-      const cy = height * 0.55;
-      const base = Math.min(width, height) * 0.13;
+      const cx = width * 0.51;
+      const cy = height * 0.5;
+      const radius = Math.min(width, height) * 0.22;
+      const pulse = 1 + Math.sin(time * 0.8) * 0.025;
 
+      const beam = ctx.createLinearGradient(0, cy, cx, cy);
+      beam.addColorStop(0, "rgba(139, 182, 201, 0)");
+      beam.addColorStop(0.72, "rgba(139, 182, 201, 0.18)");
+      beam.addColorStop(1, "rgba(223, 156, 109, 0.28)");
+      ctx.fillStyle = beam;
+      ctx.beginPath();
+      ctx.moveTo(-20, cy - radius * 0.7);
+      ctx.lineTo(cx - radius * 0.72, cy - radius * 0.25);
+      ctx.lineTo(cx - radius * 0.72, cy + radius * 0.25);
+      ctx.lineTo(-20, cy + radius * 0.7);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(139, 182, 201, 0.34)";
+      ctx.lineWidth = 1;
       for (let ray = -2; ray <= 2; ray += 1) {
-        const y = cy + ray * 21;
-        const rayGradient = ctx.createLinearGradient(18, y, cx - base, y);
-        rayGradient.addColorStop(0, "rgba(139, 182, 201, 0.06)");
-        rayGradient.addColorStop(1, "rgba(139, 182, 201, 0.6)");
-        ctx.strokeStyle = rayGradient;
-        ctx.lineWidth = ray === 0 ? 1.5 : 0.8;
         ctx.beginPath();
-        ctx.moveTo(18, y);
-        ctx.lineTo(cx - base * 1.1, y + Math.sin(time * 0.7 + ray) * 3);
+        ctx.moveTo(10, cy + ray * radius * 0.22);
+        ctx.bezierCurveTo(width * 0.2, cy + ray * radius * 0.18, width * 0.3, cy + ray * radius * 0.12, cx - radius * 0.78, cy + ray * radius * 0.08);
         ctx.stroke();
       }
 
+      this.drawGlow(cx, cy, radius * 1.75, "rgba(191, 106, 61, 0.2)");
       ctx.save();
       ctx.translate(cx, cy);
-      const particleGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, base * 1.35);
-      particleGlow.addColorStop(0, "rgba(215, 122, 69, 0.42)");
-      particleGlow.addColorStop(0.55, "rgba(191, 106, 61, 0.15)");
-      particleGlow.addColorStop(1, "rgba(191, 106, 61, 0)");
-      ctx.fillStyle = particleGlow;
+      ctx.scale(pulse, pulse);
+      const particle = ctx.createRadialGradient(-radius * 0.22, -radius * 0.25, radius * 0.08, 0, 0, radius);
+      particle.addColorStop(0, "rgba(240, 174, 123, 0.88)");
+      particle.addColorStop(0.46, "rgba(178, 91, 49, 0.72)");
+      particle.addColorStop(1, "rgba(72, 52, 43, 0.56)");
+      ctx.fillStyle = particle;
+      ctx.strokeStyle = "rgba(242, 192, 151, 0.48)";
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(0, 0, base * 1.35, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      for (let point = 0; point <= 36; point += 1) {
-        const angle = point / 36 * Math.PI * 2;
-        const radius = base * (0.78 + Math.sin(angle * 5 + time * 0.2) * 0.08 + Math.cos(angle * 3) * 0.06);
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
+      for (let point = 0; point <= 52; point += 1) {
+        const angle = point / 52 * Math.PI * 2;
+        const edge = radius * (0.86 + Math.sin(angle * 5 + time * 0.18) * 0.055 + Math.cos(angle * 3) * 0.04);
+        const x = Math.cos(angle) * edge;
+        const y = Math.sin(angle) * edge;
         if (point === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
       ctx.closePath();
-      ctx.fillStyle = "rgba(139, 78, 49, 0.28)";
-      ctx.strokeStyle = "rgba(223, 156, 109, 0.62)";
-      ctx.lineWidth = 1.2;
       ctx.fill();
       ctx.stroke();
 
-      ctx.strokeStyle = "rgba(223, 156, 109, 0.48)";
+      const nodes = [
+        [-0.42, -0.24, 4], [-0.12, -0.43, 3], [0.22, -0.26, 5], [0.42, 0.08, 3],
+        [0.08, 0.28, 4], [-0.27, 0.32, 3], [-0.04, -0.02, 5]
+      ];
+      ctx.strokeStyle = "rgba(255, 223, 190, 0.22)";
       ctx.lineWidth = 1;
-      ctx.setLineDash([2, 6]);
-      ctx.beginPath();
-      ctx.arc(0, 0, base * 1.12, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      for (let index = 0; index < 11; index += 1) {
-        const angle = index / 11 * Math.PI * 2 + time * 0.04;
-        const radius = base * (0.2 + (index % 4) * 0.16);
+      nodes.forEach(([nx, ny], index) => {
+        const [tx, ty] = nodes[(index + 2) % nodes.length];
         ctx.beginPath();
-        ctx.arc(Math.cos(angle) * radius, Math.sin(angle) * radius, index % 3 === 0 ? 3.2 : 1.8, 0, Math.PI * 2);
-        ctx.fillStyle = index % 3 === 0 ? "#df9c6d" : "rgba(225, 226, 219, 0.55)";
+        ctx.moveTo(nx * radius, ny * radius);
+        ctx.lineTo(tx * radius, ty * radius);
+        ctx.stroke();
+      });
+      nodes.forEach(([nx, ny, size], index) => {
+        ctx.beginPath();
+        ctx.arc(nx * radius, ny * radius, size, 0, Math.PI * 2);
+        ctx.fillStyle = index % 3 === 0 ? "rgba(139, 182, 201, 0.9)" : "rgba(255, 213, 171, 0.9)";
         ctx.fill();
-      }
+      });
       ctx.restore();
 
-      ctx.font = "8px 'IBM Plex Mono', monospace";
-      ctx.fillStyle = "rgba(223, 156, 109, 0.76)";
-      ctx.fillText("BrC-RICH PARTICLE", cx - base, cy + base * 1.55);
-
-      const plotX = width * 0.54;
-      const plotY = height * 0.34;
-      const plotW = width * 0.37;
-      const plotH = height * 0.38;
-      this.drawPlotFrame(plotX, plotY, plotW, plotH, "WAVELENGTH / nm", "REL. ABS.");
-
-      ctx.strokeStyle = "rgba(223, 156, 109, 0.88)";
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      for (let step = 0; step <= 48; step += 1) {
-        const fraction = step / 48;
-        const x = plotX + fraction * plotW;
-        const response = 0.12 + 0.82 * Math.exp(-fraction * 3.2);
-        const y = plotY + plotH * (1 - response) + Math.sin(fraction * 12 + time * 0.5) * 1.5;
-        if (step === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+      ctx.strokeStyle = "rgba(223, 156, 109, 0.34)";
+      ctx.lineWidth = 1.2;
+      for (let arc = 0; arc < 3; arc += 1) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * (1.14 + arc * 0.18), -0.85, 0.75);
+        ctx.stroke();
       }
-      ctx.stroke();
-
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.55)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 5]);
-      ctx.beginPath();
-      for (let step = 0; step <= 48; step += 1) {
-        const fraction = step / 48;
-        const x = plotX + fraction * plotW;
-        const response = 0.08 + 0.38 * Math.exp(-fraction * 1.8);
-        const y = plotY + plotH * (1 - response);
-        if (step === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+      for (let mote = 0; mote < 14; mote += 1) {
+        const angle = mote / 14 * Math.PI * 2 + time * 0.035;
+        const orbit = radius * (1.12 + (mote % 3) * 0.16);
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(angle) * orbit, cy + Math.sin(angle) * orbit, 1 + (mote % 3) * 0.45, 0, Math.PI * 2);
+        ctx.fillStyle = mote % 4 === 0 ? "rgba(223, 156, 109, 0.72)" : "rgba(139, 182, 201, 0.38)";
+        ctx.fill();
       }
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = "rgba(159, 170, 175, 0.62)";
-      ctx.font = "7px 'IBM Plex Mono', monospace";
-      [300, 500, 700].forEach((label, index) => {
-        ctx.fillText(String(label), plotX + plotW * index / 2 - (index ? 8 : 0), plotY + plotH + 15);
-      });
     }
 
     drawPlume(time) {
       const { ctx, width, height } = this;
-      const plotX = 42;
-      const plotY = height * 0.22;
-      const plotW = width - 78;
-      const plotH = height * 0.56;
-      this.drawPlotFrame(plotX, plotY, plotW, plotH, "TRANSPORT AGE / h", "ALTITUDE");
+      const sourceX = width * 0.1;
+      const sourceY = height * 0.73;
+      const endX = width * 0.95;
+      const endY = height * 0.35;
 
-      const centerY = plotY + plotH * 0.62;
-      const plumeGradient = ctx.createLinearGradient(plotX, centerY, plotX + plotW, centerY);
-      plumeGradient.addColorStop(0, "rgba(208, 109, 58, 0.36)");
-      plumeGradient.addColorStop(0.48, "rgba(183, 127, 91, 0.2)");
-      plumeGradient.addColorStop(1, "rgba(91, 136, 163, 0.1)");
-
+      const sunX = width * 0.8;
+      const sunY = height * 0.16;
+      this.drawGlow(sunX, sunY, Math.min(width, height) * 0.2, "rgba(243, 189, 126, 0.17)");
+      ctx.strokeStyle = "rgba(242, 190, 130, 0.48)";
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(plotX, centerY - 5);
-      ctx.bezierCurveTo(plotX + plotW * 0.28, centerY - plotH * 0.28, plotX + plotW * 0.63, centerY - plotH * 0.16, plotX + plotW, centerY - plotH * 0.34);
-      ctx.lineTo(plotX + plotW, centerY + plotH * 0.22);
-      ctx.bezierCurveTo(plotX + plotW * 0.68, centerY + plotH * 0.08, plotX + plotW * 0.34, centerY + plotH * 0.2, plotX, centerY + 5);
-      ctx.closePath();
-      ctx.fillStyle = plumeGradient;
-      ctx.fill();
-
-      ctx.strokeStyle = "rgba(223, 156, 109, 0.65)";
-      ctx.lineWidth = 1.3;
-      ctx.beginPath();
-      ctx.moveTo(plotX, centerY);
-      ctx.bezierCurveTo(plotX + plotW * 0.3, centerY - plotH * 0.08, plotX + plotW * 0.62, centerY - plotH * 0.02, plotX + plotW, centerY - plotH * 0.12);
+      ctx.arc(sunX, sunY, 11, 0, Math.PI * 2);
       ctx.stroke();
-
-      const hours = [0, 12, 24, 36, 48];
-      hours.forEach((hour, index) => {
-        const fraction = index / (hours.length - 1);
-        const x = plotX + plotW * fraction;
-        const y = centerY - plotH * (0.02 + fraction * 0.1) + Math.sin(fraction * Math.PI) * -plotH * 0.04;
-        ctx.strokeStyle = "rgba(222, 225, 220, 0.18)";
+      for (let ray = 0; ray < 10; ray += 1) {
+        const angle = ray / 10 * Math.PI * 2;
         ctx.beginPath();
-        ctx.moveTo(x, plotY + 8);
-        ctx.lineTo(x, plotY + plotH);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(x, y, index === 0 ? 4 : 2.6, 0, Math.PI * 2);
-        ctx.fillStyle = index < 3 ? "#df9c6d" : "#8bb6c9";
-        ctx.fill();
-        ctx.fillStyle = "rgba(159, 170, 175, 0.66)";
-        ctx.font = "7px 'IBM Plex Mono', monospace";
-        ctx.fillText(`${hour} h`, x - (index ? 8 : 0), plotY + plotH + 15);
-      });
-
-      const sunX = plotX + plotW * 0.78;
-      const sunY = plotY + 34;
-      ctx.strokeStyle = "rgba(223, 156, 109, 0.56)";
-      ctx.beginPath();
-      ctx.arc(sunX, sunY, 9, 0, Math.PI * 2);
-      ctx.stroke();
-      for (let ray = 0; ray < 8; ray += 1) {
-        const angle = ray / 8 * Math.PI * 2;
-        ctx.beginPath();
-        ctx.moveTo(sunX + Math.cos(angle) * 13, sunY + Math.sin(angle) * 13);
-        ctx.lineTo(sunX + Math.cos(angle) * 18, sunY + Math.sin(angle) * 18);
+        ctx.moveTo(sunX + Math.cos(angle) * 17, sunY + Math.sin(angle) * 17);
+        ctx.lineTo(sunX + Math.cos(angle) * 25, sunY + Math.sin(angle) * 25);
         ctx.stroke();
       }
-      ctx.fillStyle = "rgba(223, 156, 109, 0.66)";
-      ctx.font = "7px 'IBM Plex Mono', monospace";
-      ctx.fillText("PHOTOCHEMICAL BLEACHING", sunX - 54, sunY + 30);
 
-      for (let index = 0; index < 36; index += 1) {
-        const fraction = (index * 0.618033 + time * 0.008) % 1;
-        const x = plotX + fraction * plotW;
-        const spread = plotH * (0.03 + fraction * 0.13);
-        const y = centerY - plotH * fraction * 0.1 + Math.sin(index * 8.2 + time * 0.3) * spread;
+      for (let layer = 4; layer >= 0; layer -= 1) {
+        const spread = height * (0.045 + layer * 0.024);
+        const offset = (layer - 2) * height * 0.018;
+        const gradient = ctx.createLinearGradient(sourceX, 0, endX, 0);
+        gradient.addColorStop(0, `rgba(196, 91, 43, ${0.18 + layer * 0.025})`);
+        gradient.addColorStop(0.48, `rgba(201, 137, 94, ${0.13 + layer * 0.018})`);
+        gradient.addColorStop(1, `rgba(120, 166, 184, ${0.06 + layer * 0.015})`);
+        ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.arc(x, y, 1.2 + (index % 3), 0, Math.PI * 2);
-        ctx.fillStyle = index % 4 === 0 ? "rgba(223, 156, 109, 0.48)" : "rgba(171, 186, 191, 0.3)";
+        ctx.moveTo(sourceX, sourceY);
+        ctx.bezierCurveTo(width * 0.31, sourceY - height * 0.3 + offset - spread, width * 0.64, endY + height * 0.11 - spread, endX, endY - spread * 0.55);
+        ctx.bezierCurveTo(width * 0.7, endY + spread * 1.3, width * 0.35, sourceY - height * 0.13 + offset + spread, sourceX, sourceY);
+        ctx.closePath();
         ctx.fill();
       }
+
+      ctx.strokeStyle = "rgba(235, 179, 129, 0.46)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(sourceX, sourceY);
+      ctx.bezierCurveTo(width * 0.31, sourceY - height * 0.26, width * 0.64, endY + height * 0.08, endX, endY);
+      ctx.stroke();
+
+      for (let index = 0; index < 46; index += 1) {
+        const fraction = (index / 46 + time * 0.012) % 1;
+        const x = this.cubic(sourceX, width * 0.31, width * 0.64, endX, fraction);
+        const center = this.cubic(sourceY, sourceY - height * 0.26, endY + height * 0.08, endY, fraction);
+        const spread = height * (0.012 + fraction * 0.11);
+        const y = center + Math.sin(index * 7.7 + time * 0.5) * spread;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.2 + (index % 4) * 0.65, 0, Math.PI * 2);
+        ctx.fillStyle = fraction < 0.52 ? "rgba(235, 159, 106, 0.58)" : "rgba(145, 181, 194, 0.38)";
+        ctx.fill();
+      }
+      this.drawFire(sourceX, sourceY, 0.72);
     }
 
     drawTrajectory(time) {
       const { ctx, width, height } = this;
-      const source = { x: width * 0.12, y: height * 0.76 };
-      const sample = { x: width * 0.86, y: height * 0.25 };
+      const source = { x: width * 0.12, y: height * 0.77 };
+      const sample = { x: width * 0.86, y: height * 0.27 };
 
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.11)";
+      ctx.strokeStyle = "rgba(139, 182, 201, 0.1)";
       ctx.lineWidth = 1;
-      for (let line = 0; line < 5; line += 1) {
+      for (let contour = 0; contour < 6; contour += 1) {
         ctx.beginPath();
-        ctx.moveTo(-20, height * (0.26 + line * 0.12));
-        ctx.bezierCurveTo(width * 0.24, height * (0.1 + line * 0.14), width * 0.47, height * (0.5 + line * 0.06), width + 20, height * (0.16 + line * 0.13));
+        ctx.moveTo(-20, height * (0.34 + contour * 0.1));
+        ctx.bezierCurveTo(width * 0.24, height * (0.12 + contour * 0.12), width * 0.58, height * (0.5 + contour * 0.05), width + 20, height * (0.14 + contour * 0.12));
         ctx.stroke();
       }
 
       for (let member = 0; member < 9; member += 1) {
         const offset = (member - 4) / 4;
-        const controlA = { x: width * (0.31 + offset * 0.02), y: height * (0.73 + offset * 0.08) };
-        const controlB = { x: width * (0.55 + offset * 0.04), y: height * (0.16 + offset * 0.09) };
-        ctx.strokeStyle = member === 4 ? "rgba(223, 156, 109, 0.78)" : `rgba(139, 182, 201, ${0.12 + (4 - Math.abs(member - 4)) * 0.025})`;
-        ctx.lineWidth = member === 4 ? 1.7 : 0.9;
-        ctx.setLineDash(member === 4 ? [] : [2, 6]);
+        const controlA = { x: width * (0.31 + offset * 0.025), y: height * (0.75 + offset * 0.08) };
+        const controlB = { x: width * (0.56 + offset * 0.04), y: height * (0.13 + offset * 0.1) };
+        ctx.strokeStyle = member === 4 ? "rgba(232, 162, 111, 0.9)" : `rgba(139, 182, 201, ${0.12 + (4 - Math.abs(member - 4)) * 0.022})`;
+        ctx.lineWidth = member === 4 ? 1.8 : 1;
         ctx.beginPath();
         ctx.moveTo(source.x, source.y);
         ctx.bezierCurveTo(controlA.x, controlA.y, controlB.x, controlB.y, sample.x, sample.y);
         ctx.stroke();
       }
-      ctx.setLineDash([]);
 
-      const moving = (time * 0.04) % 1;
-      const movingX = this.cubic(source.x, width * 0.31, width * 0.55, sample.x, moving);
-      const movingY = this.cubic(source.y, height * 0.73, height * 0.16, sample.y, moving);
+      const moving = (time * 0.045) % 1;
+      const movingX = this.cubic(source.x, width * 0.31, width * 0.56, sample.x, moving);
+      const movingY = this.cubic(source.y, height * 0.75, height * 0.13, sample.y, moving);
+      this.drawGlow(movingX, movingY, 18, "rgba(235, 179, 129, 0.25)");
       ctx.beginPath();
-      ctx.arc(movingX, movingY, 3.2, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(235, 179, 129, 0.95)";
+      ctx.arc(movingX, movingY, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(246, 190, 139, 0.96)";
       ctx.fill();
 
+      this.drawFire(source.x, source.y, 0.72);
+      this.drawGlow(sample.x, sample.y, 32, "rgba(139, 182, 201, 0.18)");
       ctx.beginPath();
-      ctx.arc(source.x, source.y, 5, 0, Math.PI * 2);
-      ctx.fillStyle = "#df9c6d";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(sample.x, sample.y, 8, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.9)";
-      ctx.lineWidth = 1.4;
+      ctx.arc(sample.x, sample.y, 11, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(139, 182, 201, 0.82)";
+      ctx.lineWidth = 1.5;
       ctx.stroke();
-
-      ctx.font = "9px 'IBM Plex Mono', monospace";
-      ctx.fillStyle = "rgba(223, 156, 109, 0.72)";
-      ctx.fillText("FIRE CONTACT / t₀", source.x + 12, source.y + 3);
-      ctx.fillStyle = "rgba(139, 182, 201, 0.7)";
-      ctx.fillText("AIRCRAFT SAMPLE / t+", sample.x - 102, sample.y - 15);
-
-      ctx.fillStyle = "rgba(159, 170, 175, 0.52)";
-      ctx.font = "7px 'IBM Plex Mono', monospace";
-      ctx.fillText("ENSEMBLE SPREAD", width * 0.43, height * 0.83);
+      this.drawPlane(sample.x - 8, sample.y - 28, 0.56, -0.2);
     }
 
     drawGrid(time) {
       const { ctx, width, height } = this;
-      const columns = 10;
-      const rows = 7;
-      const fieldX = 30;
-      const fieldY = height * 0.23;
-      const fieldW = width * 0.68;
-      const fieldH = height * 0.56;
-      const cellW = fieldW / columns;
-      const cellH = fieldH / rows;
+      const cx = width * 0.52;
+      const cy = height * 0.5;
+      const radius = Math.min(width, height) * 0.34;
+      this.drawGlow(cx, cy, radius * 1.55, "rgba(91, 136, 163, 0.18)");
 
-      ctx.fillStyle = "rgba(159, 170, 175, 0.62)";
-      ctx.font = "7px 'IBM Plex Mono', monospace";
-      ctx.fillText("AAOD / MODEL FIELD", fieldX, fieldY - 12);
+      const globe = ctx.createRadialGradient(cx - radius * 0.3, cy - radius * 0.38, radius * 0.05, cx, cy, radius);
+      globe.addColorStop(0, "rgba(197, 217, 219, 0.23)");
+      globe.addColorStop(0.55, "rgba(78, 116, 139, 0.15)");
+      globe.addColorStop(1, "rgba(18, 28, 38, 0.4)");
+      ctx.fillStyle = globe;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(139, 182, 201, 0.38)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
-      for (let row = 0; row < rows; row += 1) {
-        for (let column = 0; column < columns; column += 1) {
-          const dx = column / columns - 0.55;
-          const dy = row / rows - 0.44;
-          const wave = Math.sin(column * 0.68 + row * 0.46 + time * 0.25) * 0.08;
-          const field = Math.exp(-(dx * dx * 7 + dy * dy * 12)) + wave;
-          const normalized = clamp(field, 0, 1);
-          ctx.fillStyle = normalized > 0.42
-            ? `rgba(195, 103, 58, ${0.08 + normalized * 0.35})`
-            : `rgba(91, 136, 163, ${0.045 + normalized * 0.2})`;
-          ctx.fillRect(fieldX + column * cellW + 1, fieldY + row * cellH + 1, cellW - 2, cellH - 2);
-          ctx.strokeStyle = "rgba(224, 228, 224, 0.07)";
-          ctx.strokeRect(fieldX + column * cellW + 0.5, fieldY + row * cellH + 0.5, cellW - 1, cellH - 1);
-        }
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius - 1, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.strokeStyle = "rgba(202, 214, 213, 0.12)";
+      for (let latitude = -2; latitude <= 2; latitude += 1) {
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + latitude * radius * 0.27, radius * Math.sqrt(1 - (latitude * 0.18) ** 2), radius * 0.16, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      for (let longitude = -2; longitude <= 2; longitude += 1) {
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, radius * (0.22 + Math.abs(longitude) * 0.17), radius, 0, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
-      const observations = [[0.18, 0.69], [0.34, 0.49], [0.5, 0.58], [0.62, 0.34], [0.76, 0.46], [0.86, 0.27]];
-      observations.forEach(([xFraction, yFraction], index) => {
-        const x = fieldX + fieldW * xFraction;
-        const y = fieldY + fieldH * yFraction;
+      ctx.fillStyle = "rgba(190, 203, 199, 0.13)";
+      ctx.beginPath();
+      ctx.moveTo(cx - radius * 0.82, cy - radius * 0.2);
+      ctx.bezierCurveTo(cx - radius * 0.42, cy - radius * 0.68, cx - radius * 0.18, cy - radius * 0.2, cx + radius * 0.06, cy - radius * 0.34);
+      ctx.bezierCurveTo(cx + radius * 0.36, cy - radius * 0.48, cx + radius * 0.73, cy - radius * 0.18, cx + radius * 0.86, cy + radius * 0.13);
+      ctx.bezierCurveTo(cx + radius * 0.42, cy + radius * 0.02, cx + radius * 0.2, cy + radius * 0.42, cx - radius * 0.08, cy + radius * 0.24);
+      ctx.bezierCurveTo(cx - radius * 0.34, cy + radius * 0.08, cx - radius * 0.54, cy + radius * 0.3, cx - radius * 0.82, cy - radius * 0.2);
+      ctx.fill();
+
+      const plume = ctx.createLinearGradient(cx - radius, 0, cx + radius, 0);
+      plume.addColorStop(0, "rgba(211, 111, 59, 0.76)");
+      plume.addColorStop(0.56, "rgba(206, 144, 102, 0.4)");
+      plume.addColorStop(1, "rgba(139, 182, 201, 0.12)");
+      ctx.fillStyle = plume;
+      ctx.beginPath();
+      ctx.moveTo(cx - radius * 1.04, cy + radius * 0.46);
+      ctx.bezierCurveTo(cx - radius * 0.38, cy + radius * 0.04, cx + radius * 0.2, cy + radius * 0.24, cx + radius * 1.05, cy - radius * 0.43);
+      ctx.bezierCurveTo(cx + radius * 0.25, cy + radius * 0.02, cx - radius * 0.36, cy - radius * 0.1, cx - radius * 1.04, cy + radius * 0.46);
+      ctx.fill();
+      ctx.restore();
+
+      const sites = [-2.45, -1.3, -0.18, 0.82, 2.06];
+      sites.forEach((angle, index) => {
+        const orbit = radius * (1.14 + (index % 2) * 0.08);
+        const x = cx + Math.cos(angle) * orbit;
+        const y = cy + Math.sin(angle) * orbit;
+        ctx.strokeStyle = "rgba(139, 182, 201, 0.14)";
         ctx.beginPath();
-        ctx.arc(x, y, 4 + (index % 2), 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(14, 21, 29, 0.76)";
-        ctx.fill();
-        ctx.strokeStyle = index < 3 ? "rgba(223, 156, 109, 0.92)" : "rgba(139, 182, 201, 0.9)";
-        ctx.lineWidth = 1.3;
+        ctx.moveTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+        ctx.lineTo(x, y);
         ctx.stroke();
+        this.drawGlow(x, y, 13 + Math.sin(time + index) * 2, "rgba(139, 182, 201, 0.2)");
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = index < 2 ? "rgba(223, 156, 109, 0.9)" : "rgba(139, 182, 201, 0.9)";
+        ctx.fill();
       });
-
-      const barX = width * 0.78;
-      const barY = height * 0.36;
-      const barW = width * 0.15;
-      const values = [0.72, 0.54, 0.83, 0.61];
-      ctx.fillStyle = "rgba(159, 170, 175, 0.56)";
-      ctx.font = "7px 'IBM Plex Mono', monospace";
-      ctx.fillText("MODEL / OBS", barX, barY - 14);
-      values.forEach((value, index) => {
-        const y = barY + index * 34;
-        ctx.fillStyle = "rgba(220, 224, 220, 0.08)";
-        ctx.fillRect(barX, y, barW, 7);
-        ctx.fillStyle = index % 2 === 0 ? "rgba(223, 156, 109, 0.76)" : "rgba(139, 182, 201, 0.7)";
-        ctx.fillRect(barX, y, barW * value, 7);
-        ctx.fillStyle = "rgba(159, 170, 175, 0.54)";
-        ctx.fillText(`S${index + 1}`, barX, y + 20);
-        ctx.textAlign = "right";
-        ctx.fillText(value.toFixed(2), barX + barW, y + 20);
-        ctx.textAlign = "left";
-      });
-
-      ctx.fillStyle = "rgba(159, 170, 175, 0.52)";
-      ctx.fillText("○ OBSERVATION", fieldX, fieldY + fieldH + 18);
     }
   }
 
@@ -839,9 +816,6 @@
   function setupHeroPlume() {
     const canvas = document.querySelector("[data-hero-plume]");
     const hero = canvas.closest(".hero");
-    const windReadout = document.querySelector("[data-wind-readout]");
-    const stateReadout = document.querySelector("[data-state-readout]");
-    const monitorValue = document.querySelector("[data-monitor-value]");
     const plume = new PlumeSurface(canvas, {
       sourceX: 0.84,
       sourceY: 0.83,
@@ -855,9 +829,6 @@
       const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
       const y = clamp((event.clientY - rect.top) / rect.height, 0, 1);
       plume.setPointer(x, y, true);
-      windReadout.textContent = `ENE · ${(5.5 + x * 4.2).toFixed(1)} m s⁻¹`;
-      stateReadout.textContent = y < 0.45 ? "lofting / diluting" : "aging / dispersing";
-      monitorValue.textContent = (0.54 + (1 - y) * 0.22 + x * 0.05).toFixed(2);
     }, { passive: true });
 
     hero.addEventListener("pointerleave", () => plume.setPointer(0.5, 0.5, false));
@@ -869,85 +840,88 @@
     const label = document.querySelector("[data-scene-label]");
     const index = document.querySelector("[data-scene-index]");
     const kicker = document.querySelector("[data-scene-kicker]");
-    const value = document.querySelector("[data-scene-value]");
-    const unit = document.querySelector("[data-scene-unit]");
     const caption = document.querySelector("[data-scene-caption]");
-    const axisLeft = document.querySelector("[data-axis-left]");
-    const axisMid = document.querySelector("[data-axis-mid]");
-    const axisRight = document.querySelector("[data-axis-right]");
-    const legendA = document.querySelector("[data-legend-a]");
-    const legendB = document.querySelector("[data-legend-b]");
     const steps = [...document.querySelectorAll("[data-scene]")];
     const model = new ModelSurface(canvas);
     const scenes = {
       particle: {
         index: "01",
-        label: "PARTICLE OPTICS",
-        kicker: "OPTICAL RESPONSE",
-        value: "λ-dependent",
-        unit: "absorption efficiency",
-        caption: "Organic chromophores absorb more strongly toward shorter wavelengths.",
-        axis: ["300 nm", "wavelength", "700 nm"],
-        legend: ["absorbing fraction", "incident light"]
+        label: "Particle optics",
+        kicker: "What this shows",
+        caption: "Light enters a fresh smoke particle; its organic chemistry determines how much energy is absorbed."
       },
       plume: {
         index: "02",
-        label: "CHEMICAL AGING",
-        kicker: "BLEACHING STATE",
-        value: "t + 24 h",
-        unit: "evolving plume cross-section",
-        caption: "Sunlight, oxidants, and phase state alter absorption during transport.",
-        axis: ["emission", "transport age", "48 h"],
-        legend: ["fresh absorbing aerosol", "aged aerosol"]
+        label: "Chemical aging",
+        kicker: "What this shows",
+        caption: "As smoke spreads, sunlight and chemistry can weaken its absorption over hours to days."
       },
       trajectory: {
         index: "03",
-        label: "AIR-MASS HISTORY",
-        kicker: "ENSEMBLE PATHS",
-        value: "45 members",
-        unit: "transport uncertainty",
-        caption: "A trajectory ensemble connects candidate fire contact to the aircraft sample.",
-        axis: ["fire contact", "back trajectory", "sample"],
-        legend: ["central path", "ensemble spread"]
+        label: "Air-mass history",
+        kicker: "What this shows",
+        caption: "A family of air-mass paths connects a measured sample back to fire and makes uncertainty visible."
       },
       grid: {
         index: "04",
-        label: "GLOBAL MODEL FIELD",
-        kicker: "MODEL / OBSERVATION",
-        value: "ΔAAOD",
-        unit: "closure diagnostic",
-        caption: "Point observations test whether the gridded model field produces credible optics.",
-        axis: ["model grid", "spatial evaluation", "observations"],
-        legend: ["simulated absorption", "observation site"]
+        label: "Global model",
+        kicker: "What this shows",
+        caption: "Process understanding becomes a global model, tested against observations where the atmosphere is measured."
       }
     };
 
+    let activeStep = null;
     const activate = (step) => {
+      if (!step || step === activeStep) return;
+      activeStep = step;
       steps.forEach((candidate) => candidate.classList.toggle("is-active", candidate === step));
       const scene = step.dataset.scene;
       const metadata = scenes[scene];
       index.textContent = metadata.index;
       label.textContent = metadata.label;
       kicker.textContent = metadata.kicker;
-      value.textContent = metadata.value;
-      unit.textContent = metadata.unit;
       caption.textContent = metadata.caption;
-      axisLeft.textContent = metadata.axis[0];
-      axisMid.textContent = metadata.axis[1];
-      axisRight.textContent = metadata.axis[2];
-      legendA.textContent = metadata.legend[0];
-      legendB.textContent = metadata.legend[1];
       model.setScene(scene);
     };
 
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (visible) activate(visible.target);
-    }, { rootMargin: "-32% 0px -37%", threshold: [0.05, 0.25, 0.5, 0.75] });
+    let framePending = false;
+    const syncActiveStep = () => {
+      framePending = false;
+      const mobile = window.matchMedia("(max-width: 720px)").matches;
+      const anchorY = window.innerHeight * (mobile ? 0.78 : 0.475);
+      let next = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
 
-    steps.forEach((step) => observer.observe(step));
+      steps.forEach((step) => {
+        const rect = step.getBoundingClientRect();
+        if (rect.top <= anchorY && rect.bottom > anchorY) {
+          next = step;
+          nearestDistance = -1;
+          return;
+        }
+        if (nearestDistance < 0) return;
+        const distance = Math.abs((rect.top + rect.bottom) / 2 - anchorY);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          next = step;
+        }
+      });
+
+      activate(next);
+    };
+
+    const queueSync = () => {
+      if (framePending) return;
+      framePending = true;
+      requestAnimationFrame(syncActiveStep);
+    };
+
+    window.addEventListener("scroll", queueSync, { passive: true });
+    window.addEventListener("resize", queueSync);
+    window.addEventListener("pageshow", queueSync);
+    document.fonts?.ready.then(queueSync);
+    activate(steps[0]);
+    queueSync();
     model.start();
   }
 

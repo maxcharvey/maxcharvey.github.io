@@ -88,31 +88,21 @@
           <h1 id="hero-title" class="reveal">Smoke changes as it travels. <em>I follow what that means for climate.</em></h1>
           <p class="hero-lede reveal">I’m Max Harvey, an atmospheric scientist at ETH Zürich. I connect aircraft observations, air-mass trajectories, and global models to understand the life cycle of biomass-burning aerosol.</p>
           <div class="hero-actions reveal">
-            <a class="button button-primary" href="#research">Trace the research <span aria-hidden="true">↓</span></a>
+            <a class="button button-primary" href="#projects">View selected work <span aria-hidden="true">↓</span></a>
             <a class="button button-ghost" href="https://iac.ethz.ch/people-iac/person-detail.MzcwNDc2.TGlzdC82MzcsLTE5NDE2NTk2NTg%3D.html" target="_blank" rel="noreferrer">ETH profile <span aria-hidden="true">↗</span></a>
           </div>
         </div>
 
-        <aside class="hero-monitor reveal" aria-label="Animated plume status">
-          <div class="monitor-head">
-            <span>PLUME OBSERVATORY / 47.38°N</span>
-            <span class="live-dot">RUNNING</span>
-          </div>
-          <div class="monitor-plot" aria-hidden="true">
-            <svg viewBox="0 0 260 82" preserveAspectRatio="none">
-              <path class="monitor-grid" d="M0 20.5H260M0 41H260M0 61.5H260M65 0V82M130 0V82M195 0V82"></path>
-              <path class="monitor-area" d="M0 64C28 61 36 49 62 50s33 13 59 8 33-29 58-31 41 17 81-13V82H0Z"></path>
-              <path class="monitor-curve" d="M0 64C28 61 36 49 62 50s33 13 59 8 33-29 58-31 41 17 81-13"></path>
-              <circle cx="179" cy="27" r="3"></circle>
-            </svg>
-            <div><span>relative absorption</span><b data-monitor-value>0.68</b></div>
-          </div>
-          <dl>
-            <div><dt>source</dt><dd><i class="status-swatch warm"></i>biomass burning</dd></div>
-            <div><dt>transport</dt><dd data-wind-readout>ENE · 7.2 m s⁻¹</dd></div>
-            <div><dt>state</dt><dd><i class="status-swatch cool"></i><span data-state-readout>aging / dispersing</span></dd></div>
-          </dl>
-          <p><span>INTERACTION</span> Move through the flow field to perturb the plume.</p>
+        <aside class="hero-note reveal" aria-label="Research focus">
+          <p class="hero-note-label">Research perspective</p>
+          <p class="hero-note-statement">From fire to flight track to global model.</p>
+          <p class="hero-note-copy">I build evidence across scales to reveal how wildfire smoke changes in the atmosphere and influences climate.</p>
+          <ul aria-label="Core research approaches">
+            <li>Model development</li>
+            <li>Field observations</li>
+            <li>Transport analysis</li>
+          </ul>
+          <a href="https://iac.ethz.ch/people-iac/person-detail.MzcwNDc2.TGlzdC82MzcsLTE5NDE2NTk2NTg%3D.html" target="_blank" rel="noreferrer">Based at ETH Zürich <span aria-hidden="true">↗</span></a>
         </aside>
 
         <div class="hero-scale reveal" aria-label="Research scales from particles to climate">
@@ -166,20 +156,16 @@
           </article>
         </div>
 
-        <aside class="story-visual" aria-label="Animated visualization of the active research scale">
-          <div class="visual-chrome">
-            <span><b data-scene-index>01</b> / <i data-scene-label>PARTICLE OPTICS</i></span>
-            <span>PROCESS VIEW · CONCEPTUAL</span>
+        <aside class="story-visual" aria-label="Editorial illustration of the active research scale">
+          <div class="visual-header">
+            <span class="visual-index" data-scene-index>01</span>
+            <div><small>Research scale</small><strong data-scene-label>Particle optics</strong></div>
           </div>
           <canvas data-model-canvas aria-hidden="true"></canvas>
-          <div class="visual-readout">
-            <span data-scene-kicker>OPTICAL RESPONSE</span>
-            <strong data-scene-value>λ-dependent</strong>
-            <small data-scene-unit>absorption efficiency</small>
+          <div class="visual-caption">
+            <span data-scene-kicker>Why it matters</span>
+            <p data-scene-caption>Organic chromophores absorb sunlight differently as smoke evolves.</p>
           </div>
-          <div class="visual-caption" data-scene-caption>Organic chromophores absorb more strongly toward shorter wavelengths.</div>
-          <div class="visual-axis"><span data-axis-left>300 nm</span><span data-axis-mid>wavelength</span><span data-axis-right>700 nm</span></div>
-          <div class="visual-legend"><i></i><span data-legend-a>absorbing fraction</span><i></i><span data-legend-b>incident light</span></div>
         </aside>
       </div>
     </section>
@@ -246,17 +232,21 @@
             <p>A physically grounded representation of biomass-burning organic aerosol, spanning emission, chemical aging, persistence, and evolving light absorption.</p>
           </div>
           <dl class="project-meta">
-            <div><dt>Question</dt><dd>How much absorbing organic aerosol persists?</dd></div>
-            <div><dt>Approach</dt><dd>GEOS-Chem Classic · scheme ensemble</dd></div>
+            <div><dt>Challenge</dt><dd>Represent evolving smoke absorption at global scale.</dd></div>
+            <div><dt>Contribution</dt><dd>Brown-carbon chemistry and optics in GEOS-Chem.</dd></div>
           </dl>
-          <div class="project-figure figure-grid" aria-hidden="true">
-            <span>GLOBAL FIELD</span>
-            <svg viewBox="0 0 180 110">
-              <g class="mini-grid"><path d="M1 1H179V109H1Z M31 1V109M61 1V109M91 1V109M121 1V109M151 1V109M1 28H179M1 55H179M1 82H179"></path></g>
-              <g class="heat-cells"><rect x="32" y="29" width="28" height="25"></rect><rect x="62" y="29" width="28" height="25"></rect><rect x="62" y="56" width="28" height="25"></rect><rect x="92" y="56" width="28" height="25"></rect><rect x="122" y="56" width="28" height="25"></rect></g>
-              <path class="mini-line warm-line" d="M8 84C38 78 54 64 77 66s37-24 55-21 23-15 41-19"></path>
+          <figure class="project-figure figure-model">
+            <svg viewBox="0 0 240 150" role="img" aria-labelledby="model-figure-title">
+              <title id="model-figure-title">A smoke plume crossing a stylized globe</title>
+              <defs><radialGradient id="model-glow" cx="42%" cy="35%"><stop stop-color="#f5e7d6" stop-opacity=".9"></stop><stop offset="1" stop-color="#8bb6c9" stop-opacity=".08"></stop></radialGradient><linearGradient id="model-plume" x1="0" x2="1"><stop stop-color="#df9c6d"></stop><stop offset="1" stop-color="#8bb6c9" stop-opacity=".18"></stop></linearGradient></defs>
+              <circle class="art-orb" cx="128" cy="72" r="58"></circle>
+              <circle cx="128" cy="72" r="50" fill="url(#model-glow)"></circle>
+              <g class="globe-lines"><ellipse cx="128" cy="72" rx="50" ry="20"></ellipse><ellipse cx="128" cy="72" rx="22" ry="50"></ellipse><path d="M82 52c27 13 65 13 92 0M82 93c27-13 65-13 92 0"></path></g>
+              <path class="art-plume" d="M31 109C62 84 87 90 107 72s39-11 68-29c-22 27-34 35-58 42s-47 14-86 24Z" fill="url(#model-plume)"></path>
+              <circle class="art-source" cx="31" cy="109" r="5"></circle><circle class="art-target" cx="175" cy="43" r="7"></circle>
             </svg>
-          </div>
+            <figcaption>Connecting smoke chemistry to a global atmospheric model.</figcaption>
+          </figure>
         </article>
 
         <article class="project reveal">
@@ -267,19 +257,20 @@
             <p>FIREX-AQ and WE-CAN measurements provide a moving laboratory for testing alternative descriptions of bleaching and phase-state-limited chemistry.</p>
           </div>
           <dl class="project-meta">
-            <div><dt>Question</dt><dd>Which aging mechanisms match observed plumes?</dd></div>
-            <div><dt>Approach</dt><dd>Aircraft data · multi-scheme evaluation</dd></div>
+            <div><dt>Challenge</dt><dd>Separate competing descriptions of smoke aging.</dd></div>
+            <div><dt>Contribution</dt><dd>Aircraft-based evaluation across multiple schemes.</dd></div>
           </dl>
-          <div class="project-figure figure-series" aria-hidden="true">
-            <span>AGING ENSEMBLE</span>
-            <svg viewBox="0 0 180 110">
-              <path class="mini-axis" d="M12 9V96H174"></path>
-              <path class="mini-line warm-line" d="M12 21C35 28 42 47 67 50s34 20 52 23 31 14 55 15"></path>
-              <path class="mini-line cool-line" d="M12 24C33 35 49 38 68 44s35 9 54 21 30 5 52 16"></path>
-              <path class="mini-line ghost-line" d="M12 18C30 23 43 36 65 40s41 18 59 20 27 11 50 13"></path>
-              <g class="sample-dots"><circle cx="38" cy="35" r="3"></circle><circle cx="78" cy="54" r="3"></circle><circle cx="119" cy="69" r="3"></circle><circle cx="157" cy="83" r="3"></circle></g>
+          <figure class="project-figure figure-aircraft">
+            <svg viewBox="0 0 240 150" role="img" aria-labelledby="aircraft-figure-title">
+              <title id="aircraft-figure-title">An aircraft crossing layers of evolving smoke</title>
+              <defs><linearGradient id="aging-plume" x1="0" x2="1"><stop stop-color="#bf6a3d" stop-opacity=".75"></stop><stop offset=".56" stop-color="#dfb08f" stop-opacity=".42"></stop><stop offset="1" stop-color="#8bb6c9" stop-opacity=".14"></stop></linearGradient></defs>
+              <path class="air-layer" d="M-8 111C43 69 78 82 117 63s79-13 137-47v55c-49 17-86 17-124 39s-83 17-138 35Z" fill="url(#aging-plume)"></path>
+              <path class="flight-route" d="M12 112C65 94 112 68 218 48"></path>
+              <g class="plane" transform="translate(142 63) rotate(-12)"><path d="M-26 2L-5-2 8-23h7L9-1l27 4v6L8 7-2 22h-6l5-17-23 3Z"></path></g>
+              <circle class="art-target" cx="41" cy="102" r="5"></circle><circle class="art-target" cx="99" cy="76" r="5"></circle><circle class="art-target" cx="196" cy="52" r="5"></circle>
             </svg>
-          </div>
+            <figcaption>Using field measurements to test how smoke changes in flight.</figcaption>
+          </figure>
         </article>
 
         <article class="project reveal">
@@ -290,18 +281,19 @@
             <p>Ensemble air-mass histories connect aircraft samples to fire activity, with explicit uncertainty around source contact and transport time.</p>
           </div>
           <dl class="project-meta">
-            <div><dt>Question</dt><dd>How old is the smoke at measurement time?</dd></div>
-            <div><dt>Approach</dt><dd>LAGRANTO · ERA5 · fire attribution</dd></div>
+            <div><dt>Challenge</dt><dd>Recover the age and source history of sampled smoke.</dd></div>
+            <div><dt>Contribution</dt><dd>LAGRANTO ensembles with explicit uncertainty.</dd></div>
           </dl>
-          <div class="project-figure figure-path" aria-hidden="true">
-            <span>TRAJECTORY MEMBERS</span>
-            <svg viewBox="0 0 180 110">
-              <path class="map-contour" d="M-5 77C31 55 42 65 71 45s47-8 65-28 37-7 52-23M-8 95c37-19 57-12 82-27s47-5 67-22 31-7 46-14"></path>
-              <path class="mini-line cool-line" d="M12 92C48 85 49 54 84 58s39-35 82-34"></path>
-              <path class="mini-line ghost-line" d="M12 92C42 77 63 78 81 54s53-13 85-30M12 92c39 2 51-25 79-31s39-29 75-37"></path>
-              <circle class="source-dot" cx="12" cy="92" r="4"></circle><circle class="sample-ring" cx="166" cy="24" r="6"></circle>
+          <figure class="project-figure figure-trajectory">
+            <svg viewBox="0 0 240 150" role="img" aria-labelledby="trajectory-figure-title">
+              <title id="trajectory-figure-title">A family of air-mass paths connecting a fire to an aircraft sample</title>
+              <g class="terrain-lines"><path d="M-14 116c38-40 66-26 96-53s60-13 82-39 50-13 85-38"></path><path d="M-11 137c44-33 72-24 105-47s59-12 87-37 47-14 73-31"></path><path d="M10 93c30-33 56-26 79-48s55-14 78-36"></path></g>
+              <g class="route-family"><path d="M28 119C76 105 70 69 119 72s54-42 96-39"></path><path d="M28 119C69 93 92 104 124 69s59-20 91-36"></path><path d="M28 119c55 1 71-31 107-41s42-39 80-45"></path></g>
+              <path class="route-focus" d="M28 119C76 105 70 69 119 72s54-42 96-39"></path>
+              <g class="fire-mark" transform="translate(28 119)"><circle r="12"></circle><path d="M-3 4c-2-5 1-9 5-14 1 5 7 7 4 14Z"></path></g><circle class="sample-mark" cx="215" cy="33" r="10"></circle>
             </svg>
-          </div>
+            <figcaption>Turning air-mass history into a physical clock for each sample.</figcaption>
+          </figure>
         </article>
 
         <article class="project reveal">
@@ -312,16 +304,20 @@
             <p>Offline optical calculations bridge modelled aerosol composition to AOD, absorption AOD, and single-scattering albedo observations.</p>
           </div>
           <dl class="project-meta">
-            <div><dt>Question</dt><dd>Do simulated species produce credible optics?</dd></div>
-            <div><dt>Approach</dt><dd>offAOD · AERONET · model diagnostics</dd></div>
+            <div><dt>Challenge</dt><dd>Connect simulated aerosol to observed light absorption.</dd></div>
+            <div><dt>Contribution</dt><dd>Offline AOD and AAOD evaluation workflow.</dd></div>
           </dl>
-          <div class="project-figure figure-scatter" aria-hidden="true">
-            <span>MODEL / OBSERVED</span>
-            <svg viewBox="0 0 180 110">
-              <path class="mini-axis" d="M12 9V96H174"></path><path class="one-line" d="M14 93L171 12"></path>
-              <g class="scatter-dots"><circle cx="35" cy="78" r="3"></circle><circle cx="52" cy="69" r="3"></circle><circle cx="71" cy="64" r="3"></circle><circle cx="86" cy="47" r="3"></circle><circle cx="112" cy="48" r="3"></circle><circle cx="128" cy="31" r="3"></circle><circle cx="151" cy="24" r="3"></circle></g>
+          <figure class="project-figure figure-optics">
+            <svg viewBox="0 0 240 150" role="img" aria-labelledby="optics-figure-title">
+              <title id="optics-figure-title">Light passing through an absorbing aerosol particle toward an observation</title>
+              <defs><linearGradient id="light-beam" x1="0" x2="1"><stop stop-color="#f4d3a9" stop-opacity=".8"></stop><stop offset="1" stop-color="#8bb6c9" stop-opacity=".12"></stop></linearGradient><radialGradient id="particle-core"><stop stop-color="#df9c6d"></stop><stop offset="1" stop-color="#8e492a" stop-opacity=".5"></stop></radialGradient></defs>
+              <path class="light-cone" d="M11 46L126 66v23L11 111Z" fill="url(#light-beam)"></path>
+              <circle class="particle-halo" cx="127" cy="77" r="41"></circle><path class="particle-shape" d="M128 47c18 1 29 12 27 31s-14 31-32 29-29-14-27-31 14-30 32-29Z" fill="url(#particle-core)"></path>
+              <g class="light-rays"><path d="M14 55L98 71M14 77h81M14 101l85-16"></path><path d="M155 68l70-14M157 79l68-1M154 90l71 17"></path></g>
+              <circle class="observer-ring" cx="222" cy="78" r="10"></circle><circle class="observer-dot" cx="222" cy="78" r="2"></circle>
             </svg>
-          </div>
+            <figcaption>Testing whether modelled particles create credible atmospheric optics.</figcaption>
+          </figure>
         </article>
       </div>
     </section>
