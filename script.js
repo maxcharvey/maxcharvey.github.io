@@ -189,135 +189,6 @@
     draw() {}
   }
 
-  class PlumeSurface extends CanvasSurface {
-    constructor(canvas, options = {}) {
-      super(canvas);
-      this.options = {
-        sourceX: options.sourceX ?? 0.12,
-        sourceY: options.sourceY ?? 0.78,
-        direction: options.direction ?? 1,
-        density: options.density ?? 150,
-        opacity: options.opacity ?? 1,
-        showSource: options.showSource ?? true
-      };
-      this.pointer = { x: 0.5, y: 0.5, active: false };
-      this.seeds = Array.from({ length: this.options.density }, (_, index) => ({
-        phase: index / this.options.density,
-        drift: Math.random() * 2 - 1,
-        wobble: Math.random() * Math.PI * 2,
-        size: 0.45 + Math.random() * 1.1,
-        lift: 0.7 + Math.random() * 0.65,
-        tone: Math.random()
-      }));
-    }
-
-    setPointer(x, y, active = true) {
-      this.pointer = { x, y, active };
-    }
-
-    draw(time) {
-      const { ctx, width, height } = this;
-      if (!width || !height) return;
-      ctx.clearRect(0, 0, width, height);
-
-      const sourceX = width * this.options.sourceX;
-      const sourceY = height * this.options.sourceY;
-      const direction = this.options.direction;
-      const travel = Math.max(width * 0.82, 620);
-      const rise = Math.min(height * 0.62, 510);
-      const stillTime = reducedMotion.matches ? 18 : time;
-
-      const plumePoint = (life, lane = 0, phase = 0) => {
-        const curl = Math.sin(stillTime * 0.26 + phase + life * 8.5) * (8 + life * 42);
-        const pointerPull = this.pointer.active
-          ? (this.pointer.y - 0.5) * 82 * life * clamp(1 - Math.abs(this.pointer.x - life) * 1.7, 0, 1)
-          : 0;
-        return {
-          x: sourceX + direction * (life * travel + curl * 0.3),
-          y: sourceY - Math.pow(life, 0.74) * rise * 0.68 + curl + lane * (8 + life * 44) + pointerPull
-        };
-      };
-
-      ctx.save();
-      const flowGradient = ctx.createLinearGradient(sourceX, sourceY, sourceX + direction * travel, sourceY - rise * 0.55);
-      flowGradient.addColorStop(0, "rgba(223, 156, 109, 0.34)");
-      flowGradient.addColorStop(0.5, "rgba(183, 163, 151, 0.18)");
-      flowGradient.addColorStop(1, "rgba(139, 182, 201, 0.05)");
-      for (let lane = -3; lane <= 3; lane += 1) {
-        ctx.beginPath();
-        for (let step = 0; step <= 34; step += 1) {
-          const life = step / 34;
-          const point = plumePoint(life, lane * 0.5, lane * 1.9);
-          if (step === 0) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        }
-        ctx.strokeStyle = flowGradient;
-        ctx.lineWidth = lane === 0 ? 1 : 0.65;
-        ctx.setLineDash(lane % 2 === 0 ? [1, 9] : []);
-        ctx.stroke();
-      }
-      ctx.setLineDash([]);
-      ctx.restore();
-
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      ctx.filter = `blur(${Math.max(4, width / 300)}px)`;
-
-      this.seeds.forEach((seed) => {
-        const life = (seed.phase + stillTime * (0.009 + seed.size * 0.0018)) % 1;
-        const envelope = Math.sin(Math.PI * life);
-        const point = plumePoint(life, seed.drift * seed.lift, seed.wobble);
-        const x = point.x + direction * seed.drift * life * 34;
-        const y = point.y - life * rise * (seed.lift - 1) * 0.1;
-        const radius = (5 + life * 44) * seed.size;
-        const warm = seed.tone > 0.62;
-
-        ctx.beginPath();
-        ctx.ellipse(x, y, radius * (1.3 + life * 0.45), radius * 0.66, direction * -0.3, 0, Math.PI * 2);
-        ctx.fillStyle = warm
-          ? `rgba(211, 125, 73, ${envelope * 0.07 * this.options.opacity})`
-          : `rgba(145, 163, 172, ${envelope * 0.052 * this.options.opacity})`;
-        ctx.fill();
-      });
-
-      ctx.filter = "none";
-      this.seeds.slice(0, 22).forEach((seed, index) => {
-        const life = (seed.phase + stillTime * (0.024 + index * 0.00005)) % 1;
-        if (life > 0.45) return;
-        const point = plumePoint(life, seed.drift * 0.4, seed.wobble);
-        const x = point.x;
-        const y = point.y;
-        ctx.beginPath();
-        ctx.arc(x, y, 0.8 + seed.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(235, 164, 103, ${(1 - life / 0.45) * 0.5})`;
-        ctx.fill();
-      });
-      ctx.restore();
-
-      if (this.options.showSource) {
-        ctx.save();
-        ctx.globalCompositeOperation = "screen";
-        const sourceGlow = ctx.createRadialGradient(sourceX, sourceY, 0, sourceX, sourceY, 58);
-        sourceGlow.addColorStop(0, "rgba(245, 169, 104, 0.52)");
-        sourceGlow.addColorStop(0.22, "rgba(213, 104, 50, 0.2)");
-        sourceGlow.addColorStop(1, "rgba(191, 106, 61, 0)");
-        ctx.fillStyle = sourceGlow;
-        ctx.beginPath();
-        ctx.arc(sourceX, sourceY, 58, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "rgba(240, 170, 107, 0.88)";
-        ctx.beginPath();
-        ctx.moveTo(sourceX - 5, sourceY + 6);
-        ctx.quadraticCurveTo(sourceX - 10, sourceY - 7, sourceX, sourceY - 18);
-        ctx.quadraticCurveTo(sourceX + 11, sourceY - 5, sourceX + 6, sourceY + 7);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-
-      }
-    }
-  }
-
   // ── Fluid smoke engine ─────────────────────────────────────────────────
   // A coarse stable-fluids solver (semi-Lagrangian advection + pressure
   // projection + vorticity confinement) drives the hero and contact plumes.
@@ -1352,9 +1223,9 @@
         const spread = height * (0.045 + layer * 0.024 + this.progress * 0.018) + breath;
         const offset = (layer - 2) * height * 0.018 + breath * 0.45;
         const gradient = ctx.createLinearGradient(sourceX, 0, endX, 0);
-        gradient.addColorStop(0, `rgba(196, 91, 43, ${0.18 + layer * 0.025})`);
-        gradient.addColorStop(0.48, `rgba(201, 137, 94, ${0.13 + layer * 0.018})`);
-        gradient.addColorStop(1, `rgba(120, 166, 184, ${0.06 + layer * 0.015})`);
+        gradient.addColorStop(0, `rgba(172, 96, 54, ${0.18 + layer * 0.025})`);
+        gradient.addColorStop(0.48, `rgba(166, 124, 96, ${0.13 + layer * 0.018})`);
+        gradient.addColorStop(1, `rgba(106, 135, 153, ${0.06 + layer * 0.015})`);
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.moveTo(sourceX, sourceY);
@@ -1364,7 +1235,7 @@
         ctx.fill();
       }
 
-      ctx.strokeStyle = "rgba(235, 179, 129, 0.46)";
+      ctx.strokeStyle = "rgba(228, 178, 133, 0.4)";
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(sourceX, sourceY);
@@ -1379,7 +1250,7 @@
         const y = center + Math.sin(index * 7.7 + time * 0.5) * spread;
         ctx.beginPath();
         ctx.arc(x, y, 1.2 + (index % 4) * 0.65, 0, Math.PI * 2);
-        ctx.fillStyle = fraction < 0.52 ? "rgba(235, 159, 106, 0.72)" : "rgba(145, 181, 194, 0.5)";
+        ctx.fillStyle = fraction < 0.52 ? "rgba(224, 151, 101, 0.66)" : "rgba(150, 173, 186, 0.46)";
         ctx.fill();
       }
       this.drawFire(sourceX, sourceY, 0.72);
@@ -1669,9 +1540,9 @@
         const breathing = Math.sin(this.elapsed * 0.55 + layer * 1.1) * spread * 0.025;
         const layerSpread = spread * layerScale + breathing;
         const gradient = ctx.createLinearGradient(source.x, source.y, path.end.x, path.end.y);
-        gradient.addColorStop(0, `rgba(220, 111, 57, ${(0.2 + layer * 0.018) * dilution})`);
-        gradient.addColorStop(0.48, `rgba(190, 137, 104, ${(0.13 + layer * 0.012) * dilution})`);
-        gradient.addColorStop(1, `rgba(105, 151, 170, ${(0.08 + layer * 0.009) * dilution})`);
+        gradient.addColorStop(0, `rgba(178, 98, 55, ${(0.2 + layer * 0.018) * dilution})`);
+        gradient.addColorStop(0.48, `rgba(166, 126, 99, ${(0.13 + layer * 0.012) * dilution})`);
+        gradient.addColorStop(1, `rgba(100, 130, 150, ${(0.08 + layer * 0.009) * dilution})`);
         ctx.beginPath();
         ctx.moveTo(source.x, source.y - 3);
         ctx.bezierCurveTo(path.controlA.x, path.controlA.y - layerSpread * 0.28, path.controlB.x, path.controlB.y - layerSpread, path.end.x, path.end.y - layerSpread * 0.72);
@@ -1691,9 +1562,9 @@
         const radius = (2 + life * 15) * seed.size * lerp(0.75, 1.22, state.mixing);
         const alpha = Math.sin(Math.PI * life) * dilution;
         const aged = clamp(state.age * 0.64 + life * 0.45, 0, 1);
-        const red = Math.round(lerp(219, 135, aged));
-        const green = Math.round(lerp(126, 169, aged));
-        const blue = Math.round(lerp(76, 182, aged));
+        const red = Math.round(lerp(216, 156, aged));
+        const green = Math.round(lerp(144, 175, aged));
+        const blue = Math.round(lerp(97, 187, aged));
         ctx.beginPath();
         ctx.ellipse(center.x, y, radius * 1.55, radius * 0.62, -0.25, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha * (seed.tone > 0.7 ? 0.17 : 0.1)})`;
@@ -1701,7 +1572,7 @@
       });
       ctx.restore();
 
-      ctx.strokeStyle = "rgba(223, 179, 137, 0.55)";
+      ctx.strokeStyle = "rgba(222, 178, 138, 0.48)";
       ctx.lineWidth = 1.4;
       ctx.beginPath();
       ctx.moveTo(path.start.x, path.start.y);
@@ -2176,13 +2047,18 @@
 
   function setupContactPlume() {
     const canvas = document.querySelector("[data-contact-plume]");
-    const plume = new PlumeSurface(canvas, {
-      sourceX: 0.85,
-      sourceY: 0.96,
-      direction: -1,
-      density: window.innerWidth < 720 ? 55 : 100,
-      opacity: 0.6,
-      showSource: false
+    const plume = new SmokePlumeSurface(canvas, {
+      geometry: contactSpine,
+      emission: 0.62,
+      alpha: 0.55,
+      coolBias: 0.28,
+      showSource: false,
+      particleScale: 0.45,
+      envelopeAlpha: 0.6,
+      maxCells: 9000,
+      smallMaxCells: 6000,
+      frameRate: 24,
+      seed: 0x7ac31f2
     });
     plume.start();
   }
