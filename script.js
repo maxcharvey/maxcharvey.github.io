@@ -318,53 +318,99 @@
     }
   }
 
-  class HeroPlumeSurface extends CanvasSurface {
-    constructor(canvas) {
+  // ── Fluid smoke engine ─────────────────────────────────────────────────
+  // A coarse stable-fluids solver (semi-Lagrangian advection + pressure
+  // projection + vorticity confinement) drives the hero and contact plumes.
+  // Two scalar channels ride the velocity field: smoke density and "warmth"
+  // (fresh brown-carbon → aged blue-grey). A guide flow holds the plume to
+  // its editorial silhouette when idle; the pointer is a soft moving
+  // obstacle inside the pressure solve, so smoke splits at its leading
+  // edge, curls around the flanks, and recombines in the wake.
+  const SMOKE_RAMP = {
+    warmThin: [216, 144, 97],
+    warmDense: [102, 59, 41],
+    coolThin: [156, 175, 187],
+    coolDense: [78, 99, 118]
+  };
+
+  const heroSpine = (width, height) => (width < 720
+    ? {
+        start: { x: width * 0.9, y: height * 0.8 },
+        controlA: { x: width * 0.9, y: height * 0.56 },
+        controlB: { x: width * 0.76, y: height * 0.26 },
+        end: { x: width * 0.19, y: height * 0.2 },
+        widthScale: 0.72
+      }
+    : {
+        start: { x: width * 0.94, y: height * 0.84 },
+        controlA: { x: width * 0.92, y: height * 0.57 },
+        controlB: { x: width * 0.84, y: height * 0.25 },
+        end: { x: width * 0.47, y: height * 0.15 },
+        widthScale: 1
+      });
+
+  const contactSpine = (width, height) => (width < 720
+    ? {
+        start: { x: width * 0.92, y: height * 1.04 },
+        controlA: { x: width * 0.9, y: height * 0.7 },
+        controlB: { x: width * 0.62, y: height * 0.36 },
+        end: { x: width * 0.14, y: height * 0.22 },
+        widthScale: 0.66
+      }
+    : {
+        start: { x: width * 0.88, y: height * 1.04 },
+        controlA: { x: width * 0.86, y: height * 0.68 },
+        controlB: { x: width * 0.6, y: height * 0.34 },
+        end: { x: width * 0.22, y: height * 0.16 },
+        widthScale: 0.78
+      });
+
+  class SmokePlumeSurface extends CanvasSurface {
+    constructor(canvas, options = {}) {
       super(canvas);
-      this.pointer = {
-        x: 0.72,
-        y: 0.44,
-        targetX: 0.72,
-        targetY: 0.44,
-        strength: 0,
-        targetStrength: 0,
-        pathPosition: 0.5,
-        normalOffset: 0
+      this.opts = {
+        interactive: options.interactive ?? false,
+        emission: options.emission ?? 1,
+        alpha: options.alpha ?? 1,
+        coolBias: options.coolBias ?? 0,
+        showSource: options.showSource ?? true,
+        particleScale: options.particleScale ?? 1,
+        maxCells: options.maxCells ?? 16500,
+        smallMaxCells: options.smallMaxCells ?? 8600,
+        frameRate: options.frameRate ?? 30,
+        smallFrameRate: options.smallFrameRate ?? 24,
+        envelopeAlpha: options.envelopeAlpha ?? 1,
+        geometry: options.geometry ?? heroSpine
       };
+      this.dt = 1 / 30;
+      this.simTime = 0;
+      this.acc = 0;
+      this.warmupRemaining = 0;
       this.ageProgress = 0;
-
-      let randomState = 0x2f6e2b1;
-      const random = () => {
-        randomState = (randomState * 1664525 + 1013904223) >>> 0;
-        return randomState / 4294967296;
+      this.gw = 0;
+      this.gh = 0;
+      this.stepMs = 0;
+      this.calmFrames = 0;
+      this.tier = 0;
+      this.pendingRebuild = false;
+      this.pointer = {
+        tx: 0.5, ty: 0.5, x: 0.5, y: 0.5,
+        gx: 0, gy: 0, vx: 0, vy: 0,
+        strength: 0, target: 0, seeded: false
       };
 
-      this.motes = Array.from({ length: 32 }, () => ({
-        phase: random(),
-        lane: random() * 1.5 - 0.75,
-        size: 0.7 + random() * 1.8,
-        speed: 0.016 + random() * 0.012,
-        tone: random()
-      }));
-      this.clouds = Array.from({ length: 48 }, () => ({
-        phase: random(),
-        lane: random() * 1.8 - 0.9,
-        size: 0.55 + random() * 1.1,
-        stretch: 1.1 + random() * 1.4,
-        drift: 0.7 + random() * 0.65,
-        tone: random()
-      }));
-      this.sparks = Array.from({ length: 7 }, () => ({
-        phase: random(),
-        drift: random() * 2 - 1,
-        size: 0.8 + random() * 1.8
-      }));
+      let seed = (options.seed ?? 0x51f3a9b7) >>> 0;
+      this.random = () => {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 4294967296;
+      };
     }
 
     setPointer(x, y, active = true) {
-      this.pointer.targetX = clamp(x, 0, 1);
-      this.pointer.targetY = clamp(y, 0, 1);
-      this.pointer.targetStrength = active && !reducedMotion.matches ? 1 : 0;
+      if (!this.opts.interactive) return;
+      this.pointer.tx = clamp(x, 0, 1);
+      this.pointer.ty = clamp(y, 0, 1);
+      this.pointer.target = active && !reducedMotion.matches ? 1 : 0;
       if (!this.running && this.visible) this.start();
     }
 
@@ -375,232 +421,667 @@
       if (!this.running) this.invalidate();
     }
 
-    geometry() {
-      const { width, height } = this;
-      const mobile = width < 720;
-      return mobile
-        ? {
-            start: { x: width * 0.9, y: height * 0.78 },
-            controlA: { x: width * 0.9, y: height * 0.56 },
-            controlB: { x: width * 0.76, y: height * 0.26 },
-            end: { x: width * 0.19, y: height * 0.2 },
-            widthScale: 0.72
+    spinePoint(t) {
+      const s = this.spine;
+      const inv = 1 - t;
+      return {
+        x: inv ** 3 * s.start.x + 3 * inv ** 2 * t * s.controlA.x + 3 * inv * t ** 2 * s.controlB.x + t ** 3 * s.end.x,
+        y: inv ** 3 * s.start.y + 3 * inv ** 2 * t * s.controlA.y + 3 * inv * t ** 2 * s.controlB.y + t ** 3 * s.end.y
+      };
+    }
+
+    spineTangent(t) {
+      const s = this.spine;
+      const inv = 1 - t;
+      const x = 3 * inv ** 2 * (s.controlA.x - s.start.x) + 6 * inv * t * (s.controlB.x - s.controlA.x) + 3 * t ** 2 * (s.end.x - s.controlB.x);
+      const y = 3 * inv ** 2 * (s.controlA.y - s.start.y) + 6 * inv * t * (s.controlB.y - s.controlA.y) + 3 * t ** 2 * (s.end.y - s.controlB.y);
+      const len = Math.hypot(x, y) || 1;
+      return { x: x / len, y: y / len };
+    }
+
+    onResize() {
+      if (!this.width || !this.height) return;
+      const small = Math.min(this.width, this.height) < 620 || this.width < 768;
+      const budget = (small ? this.opts.smallMaxCells : this.opts.maxCells) * (this.tier ? 0.62 : 1);
+      this.frameInterval = 1000 / (small || this.tier ? this.opts.smallFrameRate : this.opts.frameRate);
+      this.cell = Math.max(6.5, Math.sqrt((this.width * this.height) / budget));
+      this.gw = Math.max(36, Math.round(this.width / this.cell));
+      this.gh = Math.max(28, Math.round(this.height / this.cell));
+      this.cellX = this.width / this.gw;
+      this.cellY = this.height / this.gh;
+
+      const size = this.gw * this.gh;
+      this.u = new Float32Array(size);
+      this.v = new Float32Array(size);
+      this.u0 = new Float32Array(size);
+      this.v0 = new Float32Array(size);
+      this.den = new Float32Array(size);
+      this.den0 = new Float32Array(size);
+      this.wrm = new Float32Array(size);
+      this.wrm0 = new Float32Array(size);
+      this.prs = new Float32Array(size);
+      this.div = new Float32Array(size);
+      this.crl = new Float32Array(size);
+      this.gU = new Float32Array(size);
+      this.gV = new Float32Array(size);
+      this.gK = new Float32Array(size);
+      this.gT = new Float32Array(size);
+      this.gNx = new Float32Array(size);
+      this.gNy = new Float32Array(size);
+      this.fade = new Float32Array(size);
+
+      this.spine = this.opts.geometry(this.width, this.height);
+      this.iterA = this.tier ? 9 : 13;
+      this.iterB = this.tier ? 6 : 9;
+      this.buildGuide();
+      this.buildFade();
+      this.buildEnvelope();
+      this.initParticles(small);
+
+      this.field = document.createElement("canvas");
+      this.field.width = this.gw;
+      this.field.height = this.gh;
+      this.fieldCtx = this.field.getContext("2d");
+      this.fieldImage = this.fieldCtx.createImageData(this.gw, this.gh);
+
+      this.pointer.seeded = false;
+      this.simTime = 0;
+      this.acc = 0;
+      this.stepMs = 0;
+      this.calmFrames = 0;
+      this.warmupRemaining = 150;
+    }
+
+    buildGuide() {
+      const { gw, gh, gU, gV, gK, gT, gNx, gNy } = this;
+      const scaleMin = Math.min(this.width, this.height);
+
+      let spineCells = 0;
+      let prev = this.spinePoint(0);
+      for (let s = 1; s <= 24; s += 1) {
+        const p = this.spinePoint(s / 24);
+        spineCells += Math.hypot(p.x - prev.x, p.y - prev.y);
+        prev = p;
+      }
+      spineCells /= this.cell;
+      this.transitSpeed = spineCells / 15;
+
+      const steps = 72;
+      for (let s = 0; s <= steps; s += 1) {
+        const t = s / steps;
+        const point = this.spinePoint(t);
+        const tangent = this.spineTangent(t);
+        const radiusCss = lerp(0.02, 0.165, Math.pow(t, 0.78)) * scaleMin * this.spine.widthScale;
+        const radius = Math.max(1.6, radiusCss / this.cell);
+        const speed = this.transitSpeed * lerp(1.4, 0.6, t);
+        const px = point.x / this.cell;
+        const py = point.y / this.cell;
+        const x0 = Math.max(1, Math.floor(px - radius));
+        const x1 = Math.min(gw - 2, Math.ceil(px + radius));
+        const y0 = Math.max(1, Math.floor(py - radius));
+        const y1 = Math.min(gh - 2, Math.ceil(py + radius));
+        for (let y = y0; y <= y1; y += 1) {
+          for (let x = x0; x <= x1; x += 1) {
+            const dx = x - px;
+            const dy = y - py;
+            const q = (dx * dx + dy * dy) / (radius * radius);
+            if (q > 1) continue;
+            const weight = Math.exp(-2.1 * q);
+            const i = y * gw + x;
+            gU[i] += tangent.x * speed * weight;
+            gV[i] += tangent.y * speed * weight;
+            gT[i] += t * weight;
+            gNx[i] += -tangent.y * weight;
+            gNy[i] += tangent.x * weight;
+            gK[i] += weight;
           }
-        : {
-            start: { x: width * 0.94, y: height * 0.84 },
-            controlA: { x: width * 0.92, y: height * 0.57 },
-            controlB: { x: width * 0.84, y: height * 0.25 },
-            end: { x: width * 0.47, y: height * 0.15 },
-            widthScale: 1
-          };
+        }
+      }
+      for (let i = 0; i < gU.length; i += 1) {
+        const k = gK[i];
+        if (k < 0.004) { gK[i] = 0; continue; }
+        gU[i] /= k;
+        gV[i] /= k;
+        gT[i] /= k;
+        const nl = Math.hypot(gNx[i], gNy[i]) || 1;
+        gNx[i] /= nl;
+        gNy[i] /= nl;
+        gK[i] = Math.min(1, k * 0.75);
+      }
     }
 
-    cubicPoint(start, controlA, controlB, end, t) {
-      const inverse = 1 - t;
-      return {
-        x: inverse ** 3 * start.x + 3 * inverse ** 2 * t * controlA.x + 3 * inverse * t ** 2 * controlB.x + t ** 3 * end.x,
-        y: inverse ** 3 * start.y + 3 * inverse ** 2 * t * controlA.y + 3 * inverse * t ** 2 * controlB.y + t ** 3 * end.y
-      };
+    buildFade() {
+      const { gw, gh, fade } = this;
+      for (let y = 0; y < gh; y += 1) {
+        for (let x = 0; x < gw; x += 1) {
+          const ex = Math.min(1, Math.min(x, gw - 1 - x) / 3.2);
+          const ey = Math.min(1, Math.min(y, gh - 1 - y) / 3.2);
+          fade[y * gw + x] = ex * ey;
+        }
+      }
     }
 
-    cubicDerivative(start, controlA, controlB, end, t) {
-      const inverse = 1 - t;
-      return {
-        x: 3 * inverse ** 2 * (controlA.x - start.x) + 6 * inverse * t * (controlB.x - controlA.x) + 3 * t ** 2 * (end.x - controlB.x),
-        y: 3 * inverse ** 2 * (controlA.y - start.y) + 6 * inverse * t * (controlB.y - controlA.y) + 3 * t ** 2 * (end.y - controlB.y)
-      };
+    buildEnvelope() {
+      const scale = 8;
+      const w = Math.max(2, Math.ceil(this.width / scale));
+      const h = Math.max(2, Math.ceil(this.height / scale));
+      this.envelope = document.createElement("canvas");
+      this.envelope.width = w;
+      this.envelope.height = h;
+      const ectx = this.envelope.getContext("2d");
+      const scaleMin = Math.min(this.width, this.height);
+      for (let s = 0; s <= 9; s += 1) {
+        const t = s / 9;
+        const point = this.spinePoint(t);
+        const radius = Math.max(6, lerp(0.05, 0.24, Math.pow(t, 0.9)) * scaleMin * this.spine.widthScale / scale);
+        const cool = clamp(t * 0.85 + this.opts.coolBias, 0, 1);
+        const r = Math.round(lerp(SMOKE_RAMP.warmThin[0], SMOKE_RAMP.coolThin[0], cool));
+        const g = Math.round(lerp(SMOKE_RAMP.warmThin[1], SMOKE_RAMP.coolThin[1], cool));
+        const b = Math.round(lerp(SMOKE_RAMP.warmThin[2], SMOKE_RAMP.coolThin[2], cool));
+        const alpha = 0.058 * (1 - t * 0.3) * this.opts.envelopeAlpha;
+        const blob = ectx.createRadialGradient(point.x / scale, point.y / scale, 0, point.x / scale, point.y / scale, radius);
+        blob.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha})`);
+        blob.addColorStop(0.55, `rgba(${r}, ${g}, ${b}, ${alpha * 0.5})`);
+        blob.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+        ectx.fillStyle = blob;
+        ectx.beginPath();
+        ectx.arc(point.x / scale, point.y / scale, radius, 0, Math.PI * 2);
+        ectx.fill();
+      }
     }
 
-    basePoint(t) {
-      const geometry = this.geometry();
-      return this.cubicPoint(geometry.start, geometry.controlA, geometry.controlB, geometry.end, t);
+    initParticles(small) {
+      const count = Math.round((small ? 260 : 520) * this.opts.particleScale * (this.tier ? 0.6 : 1));
+      this.particles = Array.from({ length: count }, () => this.spawnParticle({}, true));
+      this.embers = this.opts.showSource
+        ? Array.from({ length: 7 }, () => ({ phase: this.random(), drift: this.random() * 2 - 1, size: 0.8 + this.random() * 1.6 }))
+        : [];
     }
 
-    resolvePointer() {
-      const pointerX = this.pointer.x * this.width;
-      const pointerY = this.pointer.y * this.height;
-      let nearestT = 0;
-      let nearestDistance = Number.POSITIVE_INFINITY;
+    spawnParticle(particle, scatter = false) {
+      const nearSource = this.random() < 0.6 && !scatter;
+      const t = nearSource ? this.random() * 0.06 : Math.pow(this.random(), 0.8) * 0.94;
+      const point = this.spinePoint(t);
+      const radiusCss = lerp(0.02, 0.14, t) * Math.min(this.width, this.height) * this.spine.widthScale;
+      const angle = this.random() * Math.PI * 2;
+      const reach = Math.sqrt(this.random()) * radiusCss * 0.8;
+      particle.x = (point.x + Math.cos(angle) * reach) / this.cell;
+      particle.y = (point.y + Math.sin(angle) * reach) / this.cell;
+      particle.age = scatter ? this.random() * 8 : 0;
+      particle.ttl = 5 + this.random() * 9;
+      particle.size = 0.55 + this.random() * 1.35;
+      particle.seed = this.random() * 100;
+      particle.bright = this.random();
+      return particle;
+    }
 
-      for (let index = 0; index <= 28; index += 1) {
-        const t = index / 28;
-        const point = this.basePoint(t);
-        const distance = (point.x - pointerX) ** 2 + (point.y - pointerY) ** 2;
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestT = t;
+    syncPointer(dt) {
+      const p = this.pointer;
+      p.strength = lerp(p.strength, p.target, 0.12);
+      p.x = lerp(p.x, p.tx, 0.3);
+      p.y = lerp(p.y, p.ty, 0.3);
+      const gx = p.x * this.width / this.cell;
+      const gy = p.y * this.height / this.cell;
+      if (!p.seeded) {
+        p.gx = gx;
+        p.gy = gy;
+        p.vx = 0;
+        p.vy = 0;
+        p.seeded = true;
+        return;
+      }
+      const vx = (gx - p.gx) / dt;
+      const vy = (gy - p.gy) / dt;
+      p.vx = lerp(p.vx, vx, 0.55);
+      p.vy = lerp(p.vy, vy, 0.55);
+      const mag = Math.hypot(p.vx, p.vy);
+      const maxV = 130;
+      if (mag > maxV) {
+        p.vx *= maxV / mag;
+        p.vy *= maxV / mag;
+      }
+      p.gx = gx;
+      p.gy = gy;
+    }
+
+    applyObstacle(share) {
+      const p = this.pointer;
+      const strength = p.strength * share;
+      if (strength < 0.02) return;
+      const { gw, gh, u, v, den, wrm } = this;
+      const radius = Math.max(3, clamp(Math.min(this.width, this.height) * 0.052, 34, 66) / this.cell);
+      const r2 = radius * radius;
+      const x0 = Math.max(1, Math.floor(p.gx - radius));
+      const x1 = Math.min(gw - 2, Math.ceil(p.gx + radius));
+      const y0 = Math.max(1, Math.floor(p.gy - radius));
+      const y1 = Math.min(gh - 2, Math.ceil(p.gy + radius));
+      for (let y = y0; y <= y1; y += 1) {
+        const row = y * gw;
+        for (let x = x0; x <= x1; x += 1) {
+          const dx = x - p.gx;
+          const dy = y - p.gy;
+          const q = (dx * dx + dy * dy) / r2;
+          if (q >= 1) continue;
+          const f = (1 - q) * (1 - q) * strength;
+          const i = row + x;
+          u[i] += (p.vx - u[i]) * f;
+          v[i] += (p.vy - v[i]) * f;
+          const clear = 1 - 0.4 * f;
+          den[i] *= clear;
+          wrm[i] *= clear;
+        }
+      }
+    }
+
+    applyForces(dt) {
+      const { gw, gh, u, v, den, gU, gV, gK, gT, gNx, gNy } = this;
+      const relaxRate = 2.6 * dt;
+      const swayA = Math.sin(this.simTime * 0.42) * 2.4 * dt;
+      const swayB = Math.sin(this.simTime * 0.23 + 1.7) * 1.6 * dt;
+      const buoyDt = 1.35 * dt;
+      for (let y = 1; y < gh - 1; y += 1) {
+        const row = y * gw;
+        for (let x = 1; x < gw - 1; x += 1) {
+          const i = row + x;
+          const k = gK[i];
+          if (k > 0.004) {
+            const relax = k * relaxRate;
+            u[i] += (gU[i] - u[i]) * relax;
+            v[i] += (gV[i] - v[i]) * relax;
+            const t = gT[i];
+            const sway = (Math.sin(this.simTime * 0.5 - t * 5.6) * 2.2 * dt + swayA * t + swayB * (1 - t)) * k;
+            u[i] += gNx[i] * sway;
+            v[i] += gNy[i] * sway;
+          }
+          v[i] -= den[i] * buoyDt;
+        }
+      }
+    }
+
+    applyVorticity(dt) {
+      const { gw, gh, u, v, crl } = this;
+      for (let y = 1; y < gh - 1; y += 1) {
+        const row = y * gw;
+        for (let x = 1; x < gw - 1; x += 1) {
+          const i = row + x;
+          crl[i] = 0.5 * ((v[i + 1] - v[i - 1]) - (u[i + gw] - u[i - gw]));
+        }
+      }
+      const eps = 3.6 * dt;
+      for (let y = 2; y < gh - 2; y += 1) {
+        const row = y * gw;
+        for (let x = 2; x < gw - 2; x += 1) {
+          const i = row + x;
+          const nx = 0.5 * (Math.abs(crl[i + 1]) - Math.abs(crl[i - 1]));
+          const ny = 0.5 * (Math.abs(crl[i + gw]) - Math.abs(crl[i - gw]));
+          const len = Math.sqrt(nx * nx + ny * ny) + 1e-5;
+          const m = eps * crl[i] / len;
+          u[i] += ny * m;
+          v[i] -= nx * m;
+        }
+      }
+    }
+
+    applyEmission(dt) {
+      const { gw, gh, u, v, den, wrm } = this;
+      const st = this.simTime;
+      const flicker = 1 + 0.24 * Math.sin(st * 2.3) + 0.14 * Math.sin(st * 3.9 + 1.7) + 0.09 * Math.sin(st * 7.1 + 0.5);
+      const wobble = 0.11 * Math.sin(st * 1.1) + 0.07 * Math.sin(st * 2.7 + 2.1);
+      const tangent = this.spineTangent(0.015);
+      const cosW = Math.cos(wobble);
+      const sinW = Math.sin(wobble);
+      const jx = tangent.x * cosW - tangent.y * sinW;
+      const jy = tangent.x * sinW + tangent.y * cosW;
+      const jet = this.transitSpeed * 1.35 * flicker;
+      const source = this.spinePoint(0.008);
+      const px = source.x / this.cell;
+      const py = source.y / this.cell;
+      const radius = Math.max(2.1, 0.016 * Math.min(this.width, this.height) / this.cell * (this.spine.widthScale + 0.5));
+      const rate = 15.5 * this.opts.emission * flicker * dt;
+      const x0 = Math.max(1, Math.floor(px - radius * 1.6));
+      const x1 = Math.min(gw - 2, Math.ceil(px + radius * 1.6));
+      const y0 = Math.max(1, Math.floor(py - radius * 1.6));
+      const y1 = Math.min(gh - 2, Math.ceil(py + radius * 1.6));
+      for (let y = y0; y <= y1; y += 1) {
+        const row = y * gw;
+        for (let x = x0; x <= x1; x += 1) {
+          const dx = (x - px) / radius;
+          const dy = (y - py) / radius;
+          const q = dx * dx + dy * dy;
+          if (q > 2.6) continue;
+          const g = Math.exp(-1.9 * q);
+          const i = row + x;
+          den[i] += rate * g;
+          wrm[i] += rate * g;
+          const pull = Math.min(1, g * 0.85);
+          u[i] += (jx * jet - u[i]) * pull;
+          v[i] += (jy * jet - v[i]) * pull;
+        }
+      }
+    }
+
+    project(iterations) {
+      const { gw, gh, u, v, prs, div } = this;
+      for (let y = 1; y < gh - 1; y += 1) {
+        const row = y * gw;
+        for (let x = 1; x < gw - 1; x += 1) {
+          const i = row + x;
+          div[i] = -0.5 * (u[i + 1] - u[i - 1] + v[i + gw] - v[i - gw]);
+          prs[i] = 0;
+        }
+      }
+      for (let iter = 0; iter < iterations; iter += 1) {
+        for (let y = 1; y < gh - 1; y += 1) {
+          const row = y * gw;
+          for (let x = 1; x < gw - 1; x += 1) {
+            const i = row + x;
+            prs[i] = (div[i] + prs[i - 1] + prs[i + 1] + prs[i - gw] + prs[i + gw]) * 0.25;
+          }
+        }
+      }
+      for (let y = 1; y < gh - 1; y += 1) {
+        const row = y * gw;
+        for (let x = 1; x < gw - 1; x += 1) {
+          const i = row + x;
+          u[i] -= 0.5 * (prs[i + 1] - prs[i - 1]);
+          v[i] -= 0.5 * (prs[i + gw] - prs[i - gw]);
+        }
+      }
+    }
+
+    advectVelocity(dt) {
+      const { gw, gh, u, v, u0, v0 } = this;
+      const maxX = gw - 1.5;
+      const maxY = gh - 1.5;
+      for (let y = 1; y < gh - 1; y += 1) {
+        const row = y * gw;
+        for (let x = 1; x < gw - 1; x += 1) {
+          const i = row + x;
+          let bx = x - dt * u0[i];
+          let by = y - dt * v0[i];
+          if (bx < 0.5) bx = 0.5; else if (bx > maxX) bx = maxX;
+          if (by < 0.5) by = 0.5; else if (by > maxY) by = maxY;
+          const x0i = bx | 0;
+          const y0i = by | 0;
+          const s1 = bx - x0i;
+          const t1 = by - y0i;
+          const s0 = 1 - s1;
+          const t0 = 1 - t1;
+          const b = y0i * gw + x0i;
+          u[i] = t0 * (s0 * u0[b] + s1 * u0[b + 1]) + t1 * (s0 * u0[b + gw] + s1 * u0[b + gw + 1]);
+          v[i] = t0 * (s0 * v0[b] + s1 * v0[b + 1]) + t1 * (s0 * v0[b + gw] + s1 * v0[b + gw + 1]);
+        }
+      }
+    }
+
+    advectScalars(dt) {
+      const { gw, gh, u, v, den, den0, wrm, wrm0, gK, gT } = this;
+      const maxX = gw - 1.5;
+      const maxY = gh - 1.5;
+      const dis = Math.exp(-dt * 0.11);
+      const disWarm = dis * Math.exp(-dt * 0.14);
+      const strayDt = dt * 0.55;
+      const lateDt = dt * 1.6;
+      for (let y = 1; y < gh - 1; y += 1) {
+        const row = y * gw;
+        for (let x = 1; x < gw - 1; x += 1) {
+          const i = row + x;
+          let bx = x - dt * u[i];
+          let by = y - dt * v[i];
+          if (bx < 0.5) bx = 0.5; else if (bx > maxX) bx = maxX;
+          if (by < 0.5) by = 0.5; else if (by > maxY) by = maxY;
+          const x0i = bx | 0;
+          const y0i = by | 0;
+          const s1 = bx - x0i;
+          const t1 = by - y0i;
+          const s0 = 1 - s1;
+          const t0 = 1 - t1;
+          const b = y0i * gw + x0i;
+          const w00 = t0 * s0;
+          const w10 = t0 * s1;
+          const w01 = t1 * s0;
+          const w11 = t1 * s1;
+          const tAge = gT[i];
+          const stray = 1 - strayDt * (1 - Math.min(1, gK[i] * 2.4)) - (tAge > 0.74 ? lateDt * (tAge - 0.74) : 0);
+          den[i] = dis * stray * (w00 * den0[b] + w10 * den0[b + 1] + w01 * den0[b + gw] + w11 * den0[b + gw + 1]);
+          wrm[i] = disWarm * stray * (w00 * wrm0[b] + w10 * wrm0[b + 1] + w01 * wrm0[b + gw] + w11 * wrm0[b + gw + 1]);
+        }
+      }
+    }
+
+    clearBorders() {
+      const { gw, gh, den, wrm } = this;
+      const last = (gh - 1) * gw;
+      for (let x = 0; x < gw; x += 1) {
+        den[x] = 0; wrm[x] = 0;
+        den[last + x] = 0; wrm[last + x] = 0;
+      }
+      for (let y = 0; y < gh; y += 1) {
+        const row = y * gw;
+        den[row] = 0; wrm[row] = 0;
+        den[row + gw - 1] = 0; wrm[row + gw - 1] = 0;
+      }
+    }
+
+    sampleField(field, x, y) {
+      const { gw, gh } = this;
+      const bx = clamp(x, 0.5, gw - 1.5);
+      const by = clamp(y, 0.5, gh - 1.5);
+      const x0 = bx | 0;
+      const y0 = by | 0;
+      const s1 = bx - x0;
+      const t1 = by - y0;
+      const b = y0 * gw + x0;
+      return (1 - t1) * ((1 - s1) * field[b] + s1 * field[b + 1]) + t1 * ((1 - s1) * field[b + gw] + s1 * field[b + gw + 1]);
+    }
+
+    updateParticles(dt) {
+      const { gw, gh } = this;
+      for (const particle of this.particles) {
+        particle.age += dt;
+        const swirl = Math.sin(particle.seed * 1.7 + this.simTime * 1.8) * 0.8;
+        const su = this.sampleField(this.u, particle.x, particle.y);
+        const sv = this.sampleField(this.v, particle.x, particle.y);
+        particle.x += (su + swirl * 0.4) * dt;
+        particle.y += (sv - swirl * 0.25) * dt;
+        if (particle.age > particle.ttl || particle.x < 1.2 || particle.x > gw - 2.2 || particle.y < 1.2 || particle.y > gh - 2.2) {
+          this.spawnParticle(particle);
+        }
+      }
+    }
+
+    step(dt) {
+      const t0 = performance.now();
+      this.simTime += dt;
+      this.applyForces(dt);
+      this.applyVorticity(dt);
+      this.applyEmission(dt);
+      if (this.opts.interactive) {
+        this.syncPointer(dt);
+        this.applyObstacle(1);
+      }
+      this.project(this.iterA);
+      let swap = this.u0; this.u0 = this.u; this.u = swap;
+      swap = this.v0; this.v0 = this.v; this.v = swap;
+      this.advectVelocity(dt);
+      if (this.opts.interactive) this.applyObstacle(0.55);
+      this.project(this.iterB);
+      swap = this.den0; this.den0 = this.den; this.den = swap;
+      swap = this.wrm0; this.wrm0 = this.wrm; this.wrm = swap;
+      this.advectScalars(dt);
+      this.clearBorders();
+      this.updateParticles(dt);
+
+      const cost = performance.now() - t0;
+      this.stepMs = this.stepMs ? this.stepMs * 0.94 + cost * 0.06 : cost;
+      if (!this.tier && this.warmupRemaining <= 0) {
+        if (this.stepMs > 7.5) {
+          this.calmFrames += 1;
+          if (this.calmFrames > 45) {
+            this.tier = 1;
+            this.pendingRebuild = true;
+          }
+        } else {
+          this.calmFrames = 0;
+        }
+      }
+    }
+
+    renderField() {
+      const { gw, den, wrm, fade } = this;
+      const data = this.fieldImage.data;
+      const age = this.ageProgress;
+      const warmScale = (1 - 0.52 * age) * (1 - this.opts.coolBias);
+      const alphaCap = 214 * this.opts.alpha * (1 - 0.16 * age);
+      const wt = SMOKE_RAMP.warmThin;
+      const wd = SMOKE_RAMP.warmDense;
+      const ct = SMOKE_RAMP.coolThin;
+      const cd = SMOKE_RAMP.coolDense;
+      const total = den.length;
+      for (let i = 0, j = 0; i < total; i += 1, j += 4) {
+        const density = den[i];
+        if (density < 0.012) {
+          data[j + 3] = 0;
+          continue;
+        }
+        const warmth = clamp(wrm[i] / (density + 1e-4), 0, 1) * warmScale;
+        const dn = density / (density + 1);
+        const wr = wt[0] + (wd[0] - wt[0]) * dn;
+        const wg = wt[1] + (wd[1] - wt[1]) * dn;
+        const wb = wt[2] + (wd[2] - wt[2]) * dn;
+        const cr = ct[0] + (cd[0] - ct[0]) * dn;
+        const cg = ct[1] + (cd[1] - ct[1]) * dn;
+        const cb = ct[2] + (cd[2] - ct[2]) * dn;
+        data[j] = cr + (wr - cr) * warmth;
+        data[j + 1] = cg + (wg - cg) * warmth;
+        data[j + 2] = cb + (wb - cb) * warmth;
+        data[j + 3] = (1 - Math.exp(-1.5 * density)) * alphaCap * fade[i];
+      }
+      this.fieldCtx.putImageData(this.fieldImage, 0, 0);
+    }
+
+    renderParticles(time) {
+      const { ctx } = this;
+      const age = this.ageProgress;
+      const warmScale = (1 - 0.52 * age) * (1 - this.opts.coolBias);
+      const wt = SMOKE_RAMP.warmThin;
+      const ct = SMOKE_RAMP.coolThin;
+      for (const particle of this.particles) {
+        const life = particle.age / particle.ttl;
+        const envelope = Math.sin(Math.PI * clamp(life, 0, 1));
+        const local = this.sampleField(this.den, particle.x, particle.y);
+        if (local < 0.05) continue;
+        const alpha = envelope * Math.min(1, local * 1.4) * (0.09 + particle.bright * 0.2) * this.opts.alpha;
+        if (alpha < 0.015) continue;
+        const warmth = clamp(this.sampleField(this.wrm, particle.x, particle.y) / (local + 1e-4), 0, 1) * warmScale;
+        const glint = particle.bright * (10 + 26 * warmth);
+        const r = Math.round(ct[0] + (wt[0] - ct[0]) * warmth + glint);
+        const g = Math.round(ct[1] + (wt[1] - ct[1]) * warmth + glint * 0.85);
+        const b = Math.round(ct[2] + (wt[2] - ct[2]) * warmth + glint * 0.65);
+        ctx.beginPath();
+        ctx.arc(particle.x * this.cellX, particle.y * this.cellY, particle.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        ctx.fill();
+      }
+    }
+
+    renderSource(time) {
+      if (!this.opts.showSource) return;
+      const { ctx } = this;
+      const source = this.spinePoint(0.004);
+      const age = this.ageProgress;
+      const dim = 1 - 0.4 * age;
+      const flicker = 1 + 0.07 * Math.sin(time * 2.6) + 0.05 * Math.sin(time * 4.3 + 1.2);
+      const scaleMin = Math.min(this.width, this.height);
+      const outerR = scaleMin * 0.085 * flicker;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      const outer = ctx.createRadialGradient(source.x, source.y, 0, source.x, source.y, outerR);
+      outer.addColorStop(0, `rgba(232, 148, 82, ${0.4 * dim})`);
+      outer.addColorStop(0.35, `rgba(191, 106, 61, ${0.16 * dim})`);
+      outer.addColorStop(1, "rgba(191, 106, 61, 0)");
+      ctx.fillStyle = outer;
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, outerR, 0, Math.PI * 2);
+      ctx.fill();
+
+      const innerR = 22 * flicker;
+      const inner = ctx.createRadialGradient(source.x, source.y, 0, source.x, source.y, innerR);
+      inner.addColorStop(0, `rgba(255, 205, 148, ${0.5 * dim})`);
+      inner.addColorStop(0.5, `rgba(240, 156, 92, ${0.24 * dim})`);
+      inner.addColorStop(1, "rgba(240, 156, 92, 0)");
+      ctx.fillStyle = inner;
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, innerR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(255, 214, 160, ${0.9 * dim})`;
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, 3.2 * flicker, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (let e = 0; e < this.embers.length; e += 1) {
+        const ember = this.embers[e];
+        const life = (ember.phase + time * (0.055 + e * 0.004)) % 1;
+        const x = source.x + ember.drift * (7 + life * 26) + Math.sin(time * 1.3 + e * 2.1) * 3;
+        const y = source.y - life * scaleMin * 0.09;
+        ctx.beginPath();
+        ctx.arc(x, y, ember.size * (1 - life * 0.6), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(248, 178, 110, ${(1 - life) * 0.6 * dim})`;
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    draw(time, delta = 0) {
+      const { ctx, width, height } = this;
+      if (!width || !height || !this.gw) return;
+
+      if (this.pendingRebuild) {
+        this.pendingRebuild = false;
+        this.onResize();
+      }
+
+      if (this.warmupRemaining > 0) {
+        const chunk = reducedMotion.matches ? this.warmupRemaining : Math.min(4, this.warmupRemaining);
+        for (let s = 0; s < chunk; s += 1) this.step(this.dt);
+        this.warmupRemaining -= chunk;
+      } else if (delta > 0) {
+        this.acc = Math.min(this.acc + delta, this.dt * 2.5);
+        let guard = 0;
+        while (this.acc >= this.dt && guard < 2) {
+          this.step(this.dt);
+          this.acc -= this.dt;
+          guard += 1;
         }
       }
 
-      const geometry = this.geometry();
-      const point = this.basePoint(nearestT);
-      const derivative = this.cubicDerivative(geometry.start, geometry.controlA, geometry.controlB, geometry.end, nearestT);
-      const length = Math.hypot(derivative.x, derivative.y) || 1;
-      const normal = { x: -derivative.y / length, y: derivative.x / length };
-      const normalDistance = (pointerX - point.x) * normal.x + (pointerY - point.y) * normal.y;
-      this.pointer.pathPosition = nearestT;
-      this.pointer.normalOffset = clamp(normalDistance, -105, 105);
-    }
-
-    pathPoint(t, lane, time) {
-      const geometry = this.geometry();
-      const point = this.cubicPoint(geometry.start, geometry.controlA, geometry.controlB, geometry.end, t);
-      const derivative = this.cubicDerivative(geometry.start, geometry.controlA, geometry.controlB, geometry.end, t);
-      const length = Math.hypot(derivative.x, derivative.y) || 1;
-      const normal = { x: -derivative.y / length, y: derivative.x / length };
-      const plumeWidth = lerp(7, Math.min(this.width, this.height) * 0.16, t) * geometry.widthScale;
-      const ambient = Math.sin(time * 0.42 + t * 8.5 + lane * 1.7) * (2 + t * 11);
-      const localInfluence = Math.exp(-(((t - this.pointer.pathPosition) / 0.16) ** 2));
-      const pointerBend = this.pointer.normalOffset * 0.58 * localInfluence * this.pointer.strength;
-      const pointerRipple = Math.sin((t - this.pointer.pathPosition) * 26 + time * 3.4) * 18 * localInfluence * this.pointer.strength;
-      const broadSteer = (this.pointer.y - 0.5) * 42 * Math.sin(Math.PI * t) * this.pointer.strength;
-      const offset = lane * plumeWidth + ambient + pointerBend + pointerRipple + broadSteer;
-      return { x: point.x + normal.x * offset, y: point.y + normal.y * offset };
-    }
-
-    ribbonPath(center, thickness, time) {
-      const { ctx } = this;
-      ctx.beginPath();
-      for (let index = 0; index <= 40; index += 1) {
-        const t = index / 40;
-        const point = this.pathPoint(t, center - thickness, time);
-        if (index === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      }
-      for (let index = 40; index >= 0; index -= 1) {
-        const t = index / 40;
-        const point = this.pathPoint(t, center + thickness, time);
-        ctx.lineTo(point.x, point.y);
-      }
-      ctx.closePath();
-    }
-
-    draw(time) {
-      const { ctx, width, height } = this;
-      if (!width || !height) return;
-      const sceneTime = reducedMotion.matches ? 16 : time;
       ctx.clearRect(0, 0, width, height);
+      ctx.imageSmoothingEnabled = true;
 
-      this.pointer.x = lerp(this.pointer.x, this.pointer.targetX, 0.18);
-      this.pointer.y = lerp(this.pointer.y, this.pointer.targetY, 0.18);
-      this.pointer.strength = lerp(this.pointer.strength, this.pointer.targetStrength, 0.14);
-      if (this.pointer.strength > 0.002 || this.pointer.targetStrength > 0) this.resolvePointer();
+      ctx.globalAlpha = 0.78 + 0.22 * Math.sin(time * 0.13);
+      ctx.drawImage(this.envelope, 0, 0, width, height);
+      ctx.globalAlpha = 1;
 
-      const geometry = this.geometry();
-      const age = this.ageProgress;
-      const visibility = lerp(1, 0.82, age);
-      const rgba = (warm, cool, alpha) => `rgba(${Math.round(lerp(warm[0], cool[0], age))}, ${Math.round(lerp(warm[1], cool[1], age))}, ${Math.round(lerp(warm[2], cool[2], age))}, ${alpha * visibility})`;
-      const bodyGradient = ctx.createLinearGradient(geometry.start.x, geometry.start.y, geometry.end.x, geometry.end.y);
-      bodyGradient.addColorStop(0, rgba([222, 112, 57], [118, 132, 141], 0.78));
-      bodyGradient.addColorStop(0.42, rgba([190, 137, 111], [112, 132, 145], 0.56));
-      bodyGradient.addColorStop(0.74, rgba([145, 151, 151], [103, 132, 149], 0.42));
-      bodyGradient.addColorStop(1, rgba([120, 158, 176], [92, 126, 148], 0.27));
+      this.renderField();
+      ctx.drawImage(this.field, 0, 0, width, height);
 
-      const scale = Math.min(width, height);
-      const billows = [
-        { t: 0.04, lane: 0, along: 0.034, across: 0.018, alpha: 0.65, blur: 18, warm: [217, 120, 61], cool: [133, 139, 143] },
-        { t: 0.22, lane: -0.02, along: 0.105, across: 0.05, alpha: 0.42, blur: 24, warm: [183, 132, 105], cool: [121, 137, 146] },
-        { t: 0.46, lane: 0.08, along: 0.105, across: 0.088, alpha: 0.36, blur: 30, warm: [153, 145, 139], cool: [111, 136, 149] },
-        { t: 0.72, lane: -0.04, along: 0.09, across: 0.165, alpha: 0.29, blur: 36, warm: [137, 147, 151], cool: [100, 130, 149] },
-        { t: 0.92, lane: 0.03, along: 0.07, across: 0.23, alpha: 0.21, blur: 42, warm: [126, 148, 159], cool: [88, 121, 143] }
-      ];
+      this.renderParticles(time);
+      this.renderSource(time);
+    }
+  }
 
-      ctx.save();
-      billows.forEach((billow, index) => {
-        const t = clamp(billow.t + Math.sin(sceneTime * 0.1 + index * 1.7) * 0.006, 0, 1);
-        const point = this.pathPoint(t, billow.lane, sceneTime);
-        const derivative = this.cubicDerivative(geometry.start, geometry.controlA, geometry.controlB, geometry.end, t);
-        const angle = Math.atan2(derivative.y, derivative.x);
-        ctx.filter = `blur(${billow.blur}px)`;
-        ctx.beginPath();
-        ctx.ellipse(point.x, point.y, scale * billow.along, scale * billow.across, angle, 0, Math.PI * 2);
-        ctx.fillStyle = rgba(billow.warm, billow.cool, billow.alpha);
-        ctx.fill();
+  class HeroPlumeSurface extends SmokePlumeSurface {
+    constructor(canvas) {
+      super(canvas, {
+        interactive: true,
+        emission: 1,
+        alpha: 1,
+        showSource: true,
+        geometry: heroSpine,
+        seed: 0x2f6e2b1
       });
-      ctx.restore();
-
-      ctx.save();
-      ctx.filter = `blur(${Math.max(10, width / 95)}px)`;
-      [
-        { center: 0, thickness: 0.92, alpha: 0.5 },
-        { center: -0.28, thickness: 0.62, alpha: 0.34 },
-        { center: 0.34, thickness: 0.57, alpha: 0.3 }
-      ].forEach((ribbon) => {
-        this.ribbonPath(ribbon.center, ribbon.thickness, sceneTime);
-        ctx.globalAlpha = ribbon.alpha;
-        ctx.fillStyle = bodyGradient;
-        ctx.fill();
-      });
-      ctx.restore();
-
-      ctx.save();
-      ctx.filter = `blur(${Math.max(5, width / 260)}px)`;
-      this.clouds.forEach((cloud) => {
-        const life = (cloud.phase + sceneTime * 0.0045 * cloud.drift) % 1;
-        const point = this.pathPoint(life, cloud.lane, sceneTime);
-        const radius = lerp(8, Math.min(width, height) * 0.085, life) * cloud.size;
-        const envelope = Math.sin(Math.PI * life);
-        const warm = cloud.tone > life * 0.8;
-        ctx.beginPath();
-        ctx.ellipse(point.x, point.y, radius * cloud.stretch, radius * 0.62, -0.55 + life * 0.35, 0, Math.PI * 2);
-        ctx.fillStyle = warm
-          ? rgba([211, 127, 79], [119, 139, 150], envelope * 0.12)
-          : rgba([139, 172, 184], [96, 132, 153], envelope * 0.1);
-        ctx.fill();
-      });
-      ctx.restore();
-
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      this.motes.forEach((mote) => {
-        const life = (mote.phase + sceneTime * mote.speed) % 1;
-        const point = this.pathPoint(life, mote.lane, sceneTime);
-        const alpha = Math.sin(Math.PI * life) * (0.34 + mote.tone * 0.35);
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, mote.size * (0.75 + life * 0.65), 0, Math.PI * 2);
-        ctx.fillStyle = mote.tone > 0.62
-          ? rgba([245, 172, 112], [151, 176, 188], alpha)
-          : rgba([178, 201, 207], [129, 163, 181], alpha * 0.7);
-        ctx.fill();
-      });
-      ctx.restore();
-
-      const source = geometry.start;
-      const sourceGlow = ctx.createRadialGradient(source.x, source.y, 0, source.x, source.y, 74);
-      sourceGlow.addColorStop(0, rgba([255, 177, 104], [174, 178, 177], 0.82));
-      sourceGlow.addColorStop(0.18, rgba([218, 101, 48], [119, 137, 147], 0.32));
-      sourceGlow.addColorStop(1, "rgba(191, 106, 61, 0)");
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      ctx.fillStyle = sourceGlow;
-      ctx.beginPath();
-      ctx.arc(source.x, source.y, 74, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = rgba([255, 191, 123], [158, 177, 185], 0.96);
-      ctx.beginPath();
-      ctx.arc(source.x, source.y, 5.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      this.sparks.forEach((spark, index) => {
-        const life = (spark.phase + sceneTime * (0.06 + index * 0.003)) % 1;
-        const x = source.x + spark.drift * (8 + life * 24) + Math.sin(sceneTime * 1.2 + index) * 3;
-        const y = source.y - life * 66;
-        ctx.beginPath();
-        ctx.arc(x, y, spark.size * (1 - life * 0.55), 0, Math.PI * 2);
-        ctx.fillStyle = rgba([248, 172, 102], [157, 177, 185], (1 - life) * 0.72);
-        ctx.fill();
-      });
-      ctx.restore();
-
-      if (this.pointer.strength > 0.05) {
-        const x = this.pointer.x * width;
-        const y = this.pointer.y * height;
-        ctx.strokeStyle = `rgba(223, 156, 109, ${this.pointer.strength * 0.22})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(x, y, 22 + Math.sin(sceneTime * 2.2) * 3, 0, Math.PI * 2);
-        ctx.stroke();
-      }
     }
   }
 

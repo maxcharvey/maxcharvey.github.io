@@ -370,8 +370,8 @@ canvas {
 }
 
 .trajectory-a path {
-  stroke: rgba(230, 224, 211, 0.4);
-  stroke-dasharray: 4 14;
+  stroke: rgba(219, 218, 208, 0.3);
+  stroke-dasharray: 3 15;
   animation: dash-flow 18s linear infinite;
 }
 
