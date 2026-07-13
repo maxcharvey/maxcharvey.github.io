@@ -1,6 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    :root { --warm-thin: #d89061; --warm-dense: #663b29; --cool-thin: #9cafbb; --cool-dense: #4e6376; }
+  </style>
   <rect width="64" height="64" rx="12" fill="#101720"/>
-  <circle cx="16" cy="45" r="5" fill="#df9c6d"/>
-  <path d="M18 43C27 24 38 25 50 12M22 50c10-13 20-11 34-20" fill="none" stroke="#eee9df" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="50" cy="12" r="2.5" fill="#8bb6c9"/>
+  <circle cx="16" cy="45" r="5" fill="var(--warm-dense)" stroke="var(--warm-thin)" stroke-width="1.5"/>
+  <path d="M18 43C27 24 38 25 50 12" fill="none" stroke="var(--warm-thin)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M22 50c10-13 20-11 34-20" fill="none" stroke="var(--cool-thin)" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="50" cy="12" r="3" fill="var(--cool-dense)" stroke="var(--cool-thin)" stroke-width="1.5"/>
 </svg>

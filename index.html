@@ -10,14 +10,21 @@
   <meta property="og:title" content="Max Harvey | Atmospheric Science">
   <meta property="og:description" content="Following smoke from emission to climate through observations, trajectories, and models.">
   <meta property="og:url" content="https://maxcharvey.github.io/">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://maxcharvey.github.io/assets/og.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Max Harvey's atmospheric science website, with a warm-to-cool wildfire smoke plume crossing a dusk sky.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://maxcharvey.github.io/assets/og.png">
+  <meta name="twitter:image:alt" content="Max Harvey's atmospheric science website, with a warm-to-cool wildfire smoke plume crossing a dusk sky.">
   <link rel="canonical" href="https://maxcharvey.github.io/">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="site.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Instrument+Sans:wdth,wght@75..100,400..600&amp;family=Newsreader:opsz,wght@6..72,300..600&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260713-smoke">
+  <link rel="stylesheet" href="styles.css?v=20260713-visual-system">
   <title>Max Harvey | Atmospheric Science</title>
   <script type="application/ld+json">
     {
@@ -38,7 +45,7 @@
       ]
     }
   </script>
-  <script src="script.js?v=20260713-smoke" defer></script>
+  <script src="script.js?v=20260713-visual-system" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -177,7 +184,8 @@
             <div><small>Research scale</small><strong data-scene-label>Particle optics</strong></div>
           </div>
           <button class="visual-motion" type="button" data-research-motion aria-pressed="false" aria-label="Pause research animation"><span aria-hidden="true">Ⅱ</span><span data-research-motion-label>Pause animation</span></button>
-          <canvas data-model-canvas data-max-dpr="1.6" data-frame-rate="30" aria-hidden="true"></canvas>
+          <canvas class="model-scene-canvas" data-model-canvas data-max-dpr="1.6" data-frame-rate="30" aria-hidden="true"></canvas>
+          <canvas class="model-fluid-plume" data-model-plume data-max-dpr="1.35" data-frame-rate="24" aria-hidden="true"></canvas>
           <div class="visual-caption">
             <span data-scene-kicker>Why it matters</span>
             <p data-scene-caption>Organic chromophores absorb sunlight differently as smoke evolves.</p>
@@ -207,7 +215,7 @@
               <span class="lab-coordinates">RESPONDS TO CONTROLS</span>
               <span data-lab-status>PLAYING</span>
             </div>
-            <canvas data-lab-canvas data-max-dpr="1.5" data-frame-rate="30" aria-label="Interactive conceptual smoke plume responding to transport age, wind speed, and mixing"></canvas>
+            <canvas data-lab-canvas data-max-dpr="1.5" data-frame-rate="24" aria-label="Interactive fluid smoke plume responding to transport age, wind speed, and mixing"></canvas>
             <div class="lab-compass" aria-hidden="true"><i></i><span>N</span></div>
             <div class="lab-readout">
               <div><span>PATH LENGTH</span><strong data-distance-output>467 km</strong></div>
@@ -247,6 +255,37 @@
     </section>
 
     <section class="projects section-paper" id="projects" aria-labelledby="projects-title">
+      <svg class="project-definitions" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="project-smoke-ramp" x1="0" y1="0" x2="1" y2="0">
+            <stop stop-color="rgb(var(--smoke-warm-thin))"></stop>
+            <stop offset=".48" stop-color="rgb(var(--smoke-warm-dense))"></stop>
+            <stop offset="1" stop-color="rgb(var(--smoke-cool-thin))"></stop>
+          </linearGradient>
+          <linearGradient id="project-smoke-haze" x1="0" y1="0" x2="1" y2="0">
+            <stop stop-color="rgb(var(--smoke-warm-thin))" stop-opacity=".82"></stop>
+            <stop offset=".58" stop-color="rgb(var(--smoke-warm-thin))" stop-opacity=".48"></stop>
+            <stop offset="1" stop-color="rgb(var(--smoke-cool-thin))" stop-opacity=".3"></stop>
+          </linearGradient>
+          <radialGradient id="project-paper-glow" cx="38%" cy="32%">
+            <stop stop-color="#fffaf0" stop-opacity=".92"></stop>
+            <stop offset="1" stop-color="rgb(var(--smoke-cool-thin))" stop-opacity=".12"></stop>
+          </radialGradient>
+          <linearGradient id="project-light-ramp" x1="0" y1="0" x2="1" y2="0">
+            <stop stop-color="#f4d3a9" stop-opacity=".82"></stop>
+            <stop offset=".56" stop-color="rgb(var(--smoke-warm-thin))" stop-opacity=".46"></stop>
+            <stop offset="1" stop-color="rgb(var(--smoke-cool-thin))" stop-opacity=".16"></stop>
+          </linearGradient>
+          <radialGradient id="project-particle-core" cx="38%" cy="32%">
+            <stop stop-color="rgb(var(--smoke-warm-thin))"></stop>
+            <stop offset="1" stop-color="rgb(var(--smoke-warm-dense))"></stop>
+          </radialGradient>
+          <linearGradient id="project-smoke-diagonal" x1="0" y1="1" x2="1" y2="0">
+            <stop stop-color="rgb(var(--smoke-warm-thin))" stop-opacity=".62"></stop>
+            <stop offset="1" stop-color="rgb(var(--smoke-cool-thin))" stop-opacity=".18"></stop>
+          </linearGradient>
+        </defs>
+      </svg>
       <div class="section-heading shell reveal">
         <div>
           <p class="kicker ink">Active work / selected</p>
@@ -271,11 +310,16 @@
           <figure class="project-figure figure-model">
             <svg viewBox="0 0 240 150" role="img" aria-labelledby="model-figure-title">
               <title id="model-figure-title">A smoke plume crossing a stylized globe</title>
-              <defs><radialGradient id="model-glow" cx="42%" cy="35%"><stop stop-color="#f5e7d6" stop-opacity=".9"></stop><stop offset="1" stop-color="#8bb6c9" stop-opacity=".08"></stop></radialGradient><linearGradient id="model-plume" x1="0" x2="1"><stop stop-color="#df9c6d"></stop><stop offset="1" stop-color="#8bb6c9" stop-opacity=".18"></stop></linearGradient></defs>
               <circle class="art-orb" cx="128" cy="72" r="58"></circle>
-              <circle cx="128" cy="72" r="50" fill="url(#model-glow)"></circle>
+              <circle class="art-glow" cx="128" cy="72" r="50"></circle>
               <g class="globe-lines"><ellipse cx="128" cy="72" rx="50" ry="20"></ellipse><ellipse cx="128" cy="72" rx="22" ry="50"></ellipse><path d="M82 52c27 13 65 13 92 0M82 93c27-13 65-13 92 0"></path></g>
-              <path class="art-plume" d="M31 109C62 84 87 90 107 72s39-11 68-29c-22 27-34 35-58 42s-47 14-86 24Z" fill="url(#model-plume)"></path>
+              <g class="print-plume" aria-hidden="true">
+                <path class="plume-haze" d="M31 109C61 88 82 93 107 73S144 61 176 43"></path>
+                <path class="plume-body" d="M31 109C59 82 88 96 108 71S145 63 176 43"></path>
+                <path class="plume-core" d="M31 109C61 89 84 86 110 72S148 57 176 43"></path>
+                <path class="plume-grain" d="M31 109C58 91 91 91 109 74S148 59 176 43"></path>
+              </g>
+              <path class="figure-route" d="M31 109C62 84 87 90 107 72s39-11 69-29"></path>
               <circle class="art-source" cx="31" cy="109" r="5"></circle><circle class="art-target" cx="175" cy="43" r="7"></circle>
             </svg>
             <figcaption>Connecting smoke chemistry to a global atmospheric model.</figcaption>
@@ -297,8 +341,12 @@
           <figure class="project-figure figure-aircraft">
             <svg viewBox="0 0 240 150" role="img" aria-labelledby="aircraft-figure-title">
               <title id="aircraft-figure-title">An aircraft crossing layers of evolving smoke</title>
-              <defs><linearGradient id="aging-plume" x1="0" x2="1"><stop stop-color="#bf6a3d" stop-opacity=".75"></stop><stop offset=".56" stop-color="#dfb08f" stop-opacity=".42"></stop><stop offset="1" stop-color="#8bb6c9" stop-opacity=".14"></stop></linearGradient></defs>
-              <path class="air-layer" d="M-8 111C43 69 78 82 117 63s79-13 137-47v55c-49 17-86 17-124 39s-83 17-138 35Z" fill="url(#aging-plume)"></path>
+              <g class="print-plume" aria-hidden="true">
+                <path class="plume-haze" d="M-8 112C42 75 78 84 117 64S195 52 247 19"></path>
+                <path class="plume-body" d="M-8 116C37 68 78 89 118 62S196 55 249 17"></path>
+                <path class="plume-core" d="M-8 110C44 79 80 78 119 64S198 48 248 20"></path>
+                <path class="plume-grain" d="M-8 113C45 72 82 91 121 61S199 54 248 18"></path>
+              </g>
               <path class="flight-route" d="M12 112C65 94 112 68 218 48"></path>
               <g class="plane" transform="translate(142 63) rotate(-12)"><path d="M-26 2L-5-2 8-23h7L9-1l27 4v6L8 7-2 22h-6l5-17-23 3Z"></path></g>
               <circle class="art-target" cx="41" cy="102" r="5"></circle><circle class="art-target" cx="99" cy="76" r="5"></circle><circle class="art-target" cx="196" cy="52" r="5"></circle>
@@ -346,9 +394,8 @@
           <figure class="project-figure figure-optics">
             <svg viewBox="0 0 240 150" role="img" aria-labelledby="optics-figure-title">
               <title id="optics-figure-title">Light passing through an absorbing aerosol particle toward an observation</title>
-              <defs><linearGradient id="light-beam" x1="0" x2="1"><stop stop-color="#f4d3a9" stop-opacity=".8"></stop><stop offset="1" stop-color="#8bb6c9" stop-opacity=".12"></stop></linearGradient><radialGradient id="particle-core"><stop stop-color="#df9c6d"></stop><stop offset="1" stop-color="#8e492a" stop-opacity=".5"></stop></radialGradient></defs>
-              <path class="light-cone" d="M11 46L126 66v23L11 111Z" fill="url(#light-beam)"></path>
-              <circle class="particle-halo" cx="127" cy="77" r="41"></circle><path class="particle-shape" d="M128 47c18 1 29 12 27 31s-14 31-32 29-29-14-27-31 14-30 32-29Z" fill="url(#particle-core)"></path>
+              <path class="light-cone" d="M11 46L126 66v23L11 111Z"></path>
+              <circle class="particle-halo" cx="127" cy="77" r="41"></circle><path class="particle-shape" d="M128 47c18 1 29 12 27 31s-14 31-32 29-29-14-27-31 14-30 32-29Z"></path>
               <g class="light-rays"><path d="M14 55L98 71M14 77h81M14 101l85-16"></path><path d="M155 68l70-14M157 79l68-1M154 90l71 17"></path></g>
               <circle class="observer-ring" cx="222" cy="78" r="10"></circle><circle class="observer-dot" cx="222" cy="78" r="2"></circle>
             </svg>
@@ -361,9 +408,9 @@
 
     <section class="outputs" id="outputs" aria-labelledby="outputs-title">
       <svg class="outputs-orbit" viewBox="0 0 900 500" aria-hidden="true">
-        <ellipse cx="690" cy="250" rx="360" ry="145"></ellipse>
-        <ellipse cx="690" cy="250" rx="260" ry="95"></ellipse>
-        <path d="M310 250H900"></path><circle cx="526" cy="250" r="4"></circle><circle cx="789" cy="250" r="4"></circle>
+        <ellipse class="orbit-cool" cx="690" cy="250" rx="360" ry="145"></ellipse>
+        <ellipse class="orbit-warm" cx="690" cy="250" rx="260" ry="95"></ellipse>
+        <path d="M310 250H900"></path><circle class="orbit-warm" cx="526" cy="250" r="4"></circle><circle class="orbit-cool" cx="789" cy="250" r="4"></circle>
       </svg>
       <div class="shell outputs-grid">
         <div class="outputs-copy reveal">
@@ -388,7 +435,6 @@
         <div class="about-aside reveal">
           <div class="portrait-placeholder" role="img" aria-label="Portrait placeholder for Max Harvey">
             <svg viewBox="0 0 320 420" aria-hidden="true">
-              <defs><linearGradient id="profileGlow" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#bf6a3d" stop-opacity=".55"></stop><stop offset="1" stop-color="#5b88a3" stop-opacity=".1"></stop></linearGradient></defs>
               <g class="profile-contours"><path d="M-30 379Q78 279 165 281T362 99"></path><path d="M-48 414Q95 315 201 298T371 151"></path><path d="M-55 340Q72 232 151 246T344 61"></path><path d="M4 420Q116 342 224 329T370 215"></path></g>
               <path class="profile-band" d="M-10 372C79 299 120 287 168 278s93-55 150-139V420H-10Z"></path>
               <path class="profile-route" d="M25 347C96 312 99 260 166 258s87-103 138-126"></path>

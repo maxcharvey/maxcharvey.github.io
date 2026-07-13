@@ -8,6 +8,8 @@ Static personal academic site for <https://maxcharvey.github.io/>.
 - `styles.css`: complete responsive design system
 - `script.js`: navigation, reveal effects, and canvas visualizations
 - `assets/favicon.svg`: site mark
+- `assets/og.png`: generated 1200×630 social preview
+- `dev/qa/`: Playwright visual and interaction regression harnesses
 - `.github/workflows/pages.yml`: GitHub Pages deployment
 
 No framework, package installation, or build step is required.

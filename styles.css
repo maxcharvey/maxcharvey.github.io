@@ -15,6 +15,11 @@
   --ember-soft: #df9c6d;
   --sky: #5b88a3;
   --sky-bright: #8bb6c9;
+  /* RGB channels mirror SMOKE_RAMP in script.js for alpha-safe CSS/SVG use. */
+  --smoke-warm-thin: 216, 144, 97;
+  --smoke-warm-dense: 102, 59, 41;
+  --smoke-cool-thin: 156, 175, 187;
+  --smoke-cool-dense: 78, 99, 118;
   --line-dark: rgba(236, 231, 219, 0.15);
   --line-light: rgba(34, 37, 31, 0.13);
   --display: "Newsreader", Georgia, serif;
@@ -330,7 +335,7 @@ canvas {
   pointer-events: none;
   z-index: 0;
   border-radius: 50%;
-  background: radial-gradient(circle at 52% 42%, rgba(226, 139, 82, 0.2), rgba(191, 106, 61, 0.08) 35%, transparent 68%);
+  background: radial-gradient(circle at 52% 42%, rgba(var(--smoke-warm-thin), 0.2), rgba(var(--smoke-warm-dense), 0.08) 35%, transparent 68%);
   filter: blur(22px);
   mix-blend-mode: screen;
 }
@@ -668,7 +673,7 @@ canvas {
   left: 2%;
   height: 1px;
   content: "";
-  background: linear-gradient(90deg, var(--ember-soft), rgba(223, 156, 109, 0.5), rgba(91, 136, 163, 0.75), var(--sky-bright));
+  background: linear-gradient(90deg, rgb(var(--smoke-warm-thin)), rgba(var(--smoke-warm-thin), 0.5), rgba(var(--smoke-cool-dense), 0.75), rgb(var(--smoke-cool-thin)));
 }
 
 .hero-scale li {
@@ -811,8 +816,8 @@ canvas {
   color: #b9c1c6;
   border-block: 1px solid rgba(232, 225, 211, 0.08);
   background:
-    radial-gradient(70% 50% at 78% 18%, rgba(91, 136, 163, 0.16), transparent 70%),
-    radial-gradient(55% 45% at 8% 68%, rgba(191, 106, 61, 0.1), transparent 72%),
+    radial-gradient(70% 50% at 78% 18%, rgba(var(--smoke-cool-dense), 0.16), transparent 70%),
+    radial-gradient(55% 45% at 8% 68%, rgba(var(--smoke-warm-dense), 0.1), transparent 72%),
     linear-gradient(180deg, #17222d 0%, #141f2a 58%, #121c26 100%);
 }
 
@@ -837,13 +842,13 @@ canvas {
 .research-atmosphere::before {
   top: 9%;
   right: -24%;
-  background: radial-gradient(circle, rgba(91, 136, 163, 0.11), transparent 66%);
+  background: radial-gradient(circle, rgba(var(--smoke-cool-dense), 0.11), transparent 66%);
 }
 
 .research-atmosphere::after {
   bottom: 8%;
   left: -34%;
-  background: radial-gradient(circle, rgba(191, 106, 61, 0.09), transparent 68%);
+  background: radial-gradient(circle, rgba(var(--smoke-warm-dense), 0.09), transparent 68%);
 }
 
 .research .section-intro,
@@ -891,7 +896,7 @@ canvas {
   min-height: 1px;
   overflow: hidden;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(191, 106, 61, 0.2), rgba(70, 112, 143, 0.22));
+  background: linear-gradient(180deg, rgba(var(--smoke-warm-thin), 0.2), rgba(var(--smoke-cool-dense), 0.22));
 }
 
 .story-spine-fill {
@@ -1081,12 +1086,25 @@ canvas {
 }
 
 .bleaching-band {
+  --band-tint: var(--smoke-cool-thin);
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 4px 6px;
   align-items: end;
   color: #555a55;
   font-size: 10px;
+}
+
+.bleaching-band[data-band="Blue"] {
+  --band-tint: var(--smoke-cool-dense);
+}
+
+.bleaching-band[data-band="Green"] {
+  --band-tint: 205, 194, 165;
+}
+
+.bleaching-band[data-band="Red"] {
+  --band-tint: var(--smoke-warm-thin);
 }
 
 .bleaching-track {
@@ -1106,8 +1124,8 @@ canvas {
   min-height: 8px;
   overflow: hidden;
   border-radius: 8px 8px 2px 2px;
-  background: linear-gradient(180deg, #df9c6d, #a4522e);
-  box-shadow: 0 7px 14px rgba(142, 73, 42, 0.16);
+  background: linear-gradient(180deg, rgba(var(--band-tint), 0.82), rgb(var(--smoke-warm-thin)) 48%, rgb(var(--smoke-warm-dense)) 100%);
+  box-shadow: 0 7px 14px rgba(var(--smoke-warm-dense), 0.16);
   transition: height 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1115,7 +1133,7 @@ canvas {
   position: absolute;
   inset: 0;
   display: block;
-  background: linear-gradient(180deg, #8bb6c9, #4d748d);
+  background: linear-gradient(180deg, rgba(var(--smoke-cool-thin), 0.9), rgb(var(--smoke-cool-dense)));
   opacity: var(--cool-opacity, 0);
   transition: opacity 240ms ease;
 }
@@ -1206,8 +1224,8 @@ canvas {
   border: 1px solid rgba(232, 225, 211, 0.1);
   border-radius: 2px 34px 2px 2px;
   background:
-    radial-gradient(circle at 22% 74%, rgba(191, 106, 61, 0.25), transparent 42%),
-    radial-gradient(circle at 80% 21%, rgba(91, 136, 163, 0.23), transparent 38%),
+    radial-gradient(circle at 22% 74%, rgba(var(--smoke-warm-thin), 0.25), transparent 42%),
+    radial-gradient(circle at 80% 21%, rgba(var(--smoke-cool-dense), 0.23), transparent 38%),
     linear-gradient(145deg, #111a24, #0d141c);
   box-shadow: 0 38px 100px rgba(0, 0, 0, 0.26), inset 0 0 0 1px rgba(255, 255, 255, 0.018);
 }
@@ -1218,8 +1236,8 @@ canvas {
   z-index: 0;
   content: "";
   background:
-    radial-gradient(circle at 28% 74%, rgba(191, 106, 61, 0.11), transparent 34%),
-    radial-gradient(circle at 76% 24%, rgba(91, 136, 163, 0.13), transparent 36%);
+    radial-gradient(circle at 28% 74%, rgba(var(--smoke-warm-thin), 0.11), transparent 34%),
+    radial-gradient(circle at 76% 24%, rgba(var(--smoke-cool-dense), 0.13), transparent 36%);
 }
 
 .story-visual::after {
@@ -1310,6 +1328,17 @@ canvas {
   height: calc(100% - 176px);
 }
 
+.story-visual .model-fluid-plume {
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms ease;
+}
+
+.story-visual.is-plume-active .model-fluid-plume {
+  opacity: 1;
+}
+
 .visual-caption {
   position: absolute;
   right: 28px;
@@ -1365,7 +1394,7 @@ canvas {
   top: -320px;
   right: -160px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(78, 121, 147, 0.22), transparent 68%);
+  background: radial-gradient(circle, rgba(var(--smoke-cool-dense), 0.22), transparent 68%);
   filter: blur(12px);
 }
 
@@ -1437,8 +1466,8 @@ canvas {
   background:
     linear-gradient(rgba(206, 217, 222, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(206, 217, 222, 0.035) 1px, transparent 1px),
-    radial-gradient(circle at 18% 75%, rgba(190, 102, 58, 0.25), transparent 30%),
-    radial-gradient(circle at 78% 24%, rgba(91, 136, 163, 0.14), transparent 34%),
+    radial-gradient(circle at 18% 75%, rgba(var(--smoke-warm-thin), 0.25), transparent 30%),
+    radial-gradient(circle at 78% 24%, rgba(var(--smoke-cool-dense), 0.14), transparent 34%),
     #101923;
   background-size: 56px 56px, 56px 56px, auto, auto, auto;
 }
@@ -1891,13 +1920,25 @@ canvas {
   border-left: 1px solid var(--line-light);
 }
 
+.project-definitions {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .project-figure svg {
   width: 100%;
   height: auto;
   overflow: hidden;
   border: 1px solid rgba(34, 37, 31, 0.08);
   border-radius: 20px 20px 20px 4px;
-  background: linear-gradient(145deg, rgba(255, 253, 247, 0.7), rgba(221, 225, 220, 0.38));
+  background:
+    linear-gradient(rgba(34, 37, 31, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 37, 31, 0.026) 1px, transparent 1px),
+    linear-gradient(145deg, rgba(255, 253, 247, 0.8), rgba(var(--smoke-cool-thin), 0.12));
+  background-size: 18px 18px, 18px 18px, auto;
   box-shadow: 0 16px 34px rgba(34, 37, 31, 0.08);
   transition: box-shadow 300ms ease, transform 300ms ease;
 }
@@ -1914,35 +1955,81 @@ canvas {
 }
 
 .art-orb {
-  fill: rgba(91, 136, 163, 0.08);
-  stroke: rgba(70, 112, 143, 0.28);
+  fill: rgba(var(--smoke-cool-thin), 0.1);
+  stroke: var(--ink);
+  stroke-opacity: 0.22;
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.art-glow {
+  fill: url(#project-paper-glow);
 }
 
 .globe-lines {
   fill: none;
-  stroke: rgba(70, 112, 143, 0.25);
-  stroke-width: 0.9;
+  stroke: var(--ink);
+  stroke-opacity: 0.24;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
-.art-plume {
-  opacity: 0.82;
-  filter: drop-shadow(0 5px 8px rgba(142, 73, 42, 0.16));
+.print-plume {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.print-plume path {
+  vector-effect: non-scaling-stroke;
+}
+
+.print-plume .plume-haze {
+  stroke: url(#project-smoke-haze);
+  stroke-width: 30;
+  opacity: 0.24;
+}
+
+.print-plume .plume-body {
+  stroke: url(#project-smoke-haze);
+  stroke-width: 20;
+  opacity: 0.32;
+}
+
+.print-plume .plume-core {
+  stroke: url(#project-smoke-ramp);
+  stroke-width: 10;
+  opacity: 0.4;
+}
+
+.print-plume .plume-grain {
+  stroke: url(#project-smoke-ramp);
+  stroke-width: 3;
+  stroke-dasharray: 1 6;
+  opacity: 0.62;
+}
+
+.figure-route {
+  fill: none;
+  stroke: var(--ink);
+  stroke-opacity: 0.34;
+  stroke-width: 1;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .art-source {
-  fill: var(--ember);
-  filter: drop-shadow(0 0 7px rgba(191, 106, 61, 0.65));
+  fill: rgb(var(--smoke-warm-dense));
+  stroke: rgb(var(--smoke-warm-thin));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .art-target {
-  fill: rgba(248, 245, 237, 0.9);
-  stroke: var(--sky);
-  stroke-width: 1.4;
-}
-
-.air-layer {
-  opacity: 0.82;
+  fill: rgba(248, 245, 237, 0.92);
+  stroke: rgb(var(--smoke-cool-dense));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .flight-route,
@@ -1950,27 +2037,34 @@ canvas {
 .route-focus {
   fill: none;
   stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .flight-route {
-  stroke: rgba(70, 112, 143, 0.46);
-  stroke-width: 1.2;
+  stroke: rgb(var(--smoke-cool-dense));
+  stroke-opacity: 0.52;
+  stroke-width: 1;
   stroke-dasharray: 3 6;
 }
 
 .plane {
-  fill: #26333c;
-  filter: drop-shadow(0 5px 7px rgba(34, 37, 31, 0.2));
+  fill: var(--ink);
+  stroke: var(--ink);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .terrain-lines {
   fill: none;
-  stroke: rgba(34, 37, 31, 0.11);
+  stroke: var(--ink);
+  stroke-opacity: 0.16;
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .route-family path {
-  stroke: rgba(91, 136, 163, 0.31);
+  stroke: rgb(var(--smoke-cool-dense));
+  stroke-opacity: 0.42;
   stroke-width: 1;
 }
 
@@ -1979,53 +2073,69 @@ canvas {
 }
 
 .route-focus {
-  stroke: rgba(176, 84, 42, 0.68);
-  stroke-width: 1.8;
+  stroke: rgb(var(--smoke-warm-dense));
+  stroke-opacity: 0.82;
+  stroke-width: 1;
 }
 
 .fire-mark circle {
-  fill: rgba(191, 106, 61, 0.11);
-  stroke: rgba(191, 106, 61, 0.32);
+  fill: rgba(var(--smoke-warm-thin), 0.14);
+  stroke: rgb(var(--smoke-warm-dense));
+  stroke-opacity: 0.48;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .fire-mark path {
-  fill: var(--ember);
+  fill: rgb(var(--smoke-warm-dense));
 }
 
 .sample-mark {
   fill: rgba(248, 245, 237, 0.92);
-  stroke: var(--sky);
-  stroke-width: 2;
+  stroke: rgb(var(--smoke-cool-dense));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .light-cone {
+  fill: url(#project-light-ramp);
   opacity: 0.76;
 }
 
 .particle-halo {
-  fill: rgba(191, 106, 61, 0.08);
-  stroke: rgba(191, 106, 61, 0.2);
+  fill: rgba(var(--smoke-warm-thin), 0.1);
+  stroke: rgb(var(--smoke-warm-dense));
+  stroke-opacity: 0.28;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .particle-shape {
-  filter: drop-shadow(0 8px 13px rgba(142, 73, 42, 0.25));
+  fill: url(#project-particle-core);
+  stroke: var(--ink);
+  stroke-opacity: 0.36;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .light-rays {
   fill: none;
-  stroke: rgba(142, 73, 42, 0.34);
-  stroke-width: 1.2;
+  stroke: var(--ink);
+  stroke-opacity: 0.42;
+  stroke-width: 1;
   stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .observer-ring {
-  fill: rgba(139, 182, 201, 0.09);
-  stroke: var(--sky);
-  stroke-width: 1.5;
+  fill: rgba(var(--smoke-cool-thin), 0.12);
+  stroke: rgb(var(--smoke-cool-dense));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .observer-dot {
-  fill: var(--sky);
+  fill: rgb(var(--smoke-cool-dense));
 }
 
 .outputs {
@@ -2033,7 +2143,7 @@ canvas {
   overflow: hidden;
   color: #c8cdd1;
   background:
-    radial-gradient(circle at 80% 20%, rgba(91, 136, 163, 0.16), transparent 34%),
+    radial-gradient(circle at 80% 20%, rgba(var(--smoke-cool-dense), 0.16), transparent 34%),
     linear-gradient(140deg, #101720, #18232e 62%, #272a2d);
 }
 
@@ -2043,20 +2153,28 @@ canvas {
   right: -9%;
   width: min(58vw, 900px);
   height: auto;
-  opacity: 0.18;
+  opacity: 0.26;
   transform: translateY(-50%) rotate(-8deg);
 }
 
 .outputs-orbit ellipse,
 .outputs-orbit path {
   fill: none;
-  stroke: rgba(223, 231, 232, 0.34);
+  stroke: rgba(var(--smoke-cool-thin), 0.42);
   stroke-width: 1;
   stroke-dasharray: 2 8;
 }
 
-.outputs-orbit circle {
-  fill: var(--ember-soft);
+.outputs-orbit .orbit-warm {
+  stroke: rgba(var(--smoke-warm-thin), 0.54);
+}
+
+.outputs-orbit circle.orbit-warm {
+  fill: rgb(var(--smoke-warm-thin));
+}
+
+.outputs-orbit circle.orbit-cool {
+  fill: rgb(var(--smoke-cool-thin));
 }
 
 .outputs-grid {
@@ -2141,7 +2259,7 @@ canvas {
   bottom: -20%;
   border-radius: 50%;
   content: "";
-  background: radial-gradient(circle, rgba(191, 106, 61, 0.28), transparent 68%);
+  background: radial-gradient(circle, rgba(var(--smoke-warm-thin), 0.3), transparent 68%);
   filter: blur(18px);
 }
 
@@ -2154,40 +2272,50 @@ canvas {
 
 .portrait-placeholder path {
   fill: none;
-  stroke: rgba(34, 37, 31, 0.24);
+  stroke: rgb(var(--smoke-cool-dense));
+  stroke-opacity: 0.28;
   stroke-width: 1;
   stroke-dasharray: 2 7;
+  vector-effect: non-scaling-stroke;
 }
 
 .portrait-placeholder .profile-contours path {
-  stroke: rgba(34, 37, 31, 0.18);
+  stroke: rgb(var(--smoke-cool-dense));
+  stroke-opacity: 0.3;
   stroke-dasharray: 2 7;
 }
 
+.portrait-placeholder .profile-contours path:nth-child(even) {
+  stroke: rgb(var(--smoke-warm-dense));
+  stroke-opacity: 0.26;
+}
+
 .portrait-placeholder .profile-band {
-  fill: url(#profileGlow);
+  fill: url(#project-smoke-diagonal);
   stroke: none;
 }
 
 .portrait-placeholder .profile-route {
   fill: none;
-  stroke: rgba(142, 73, 42, 0.58);
-  stroke-width: 1.4;
+  stroke: rgb(var(--smoke-warm-thin));
+  stroke-opacity: 0.76;
+  stroke-width: 1;
   stroke-dasharray: 3 6;
 }
 
 .portrait-placeholder .profile-points circle {
   fill: var(--paper-2);
-  stroke: var(--ember-deep);
-  stroke-width: 1.3;
+  stroke: rgb(var(--smoke-warm-dense));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .portrait-placeholder .profile-points circle:last-child {
-  stroke: var(--sky);
+  stroke: rgb(var(--smoke-cool-dense));
 }
 
 .portrait-placeholder circle {
-  fill: var(--ember);
+  fill: rgb(var(--smoke-warm-thin));
 }
 
 .portrait-placeholder > span {
@@ -2459,7 +2587,7 @@ canvas {
     gap: 23px;
     padding: 100px var(--pad) 60px;
     background:
-      radial-gradient(circle at 90% 90%, rgba(191, 106, 61, 0.3), transparent 32%),
+      radial-gradient(circle at 90% 90%, rgba(var(--smoke-warm-thin), 0.3), transparent 32%),
       #0d141c;
     visibility: hidden;
     opacity: 0;

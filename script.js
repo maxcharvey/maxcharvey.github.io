@@ -104,6 +104,8 @@
       this.running = false;
       this.frameRequest = 0;
       this.lastFrame = 0;
+      this.frameSampleStarted = performance.now();
+      this.frameSampleCount = 0;
       this.frame = this.frame.bind(this);
 
       this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -111,6 +113,7 @@
 
       this.visibilityObserver = new IntersectionObserver(([entry]) => {
         this.visible = entry.isIntersecting;
+        this.canvas.dataset.inViewport = String(this.visible);
         if (this.visible && !this.running) this.start();
       }, { rootMargin: "180px" });
       this.visibilityObserver.observe(canvas);
@@ -146,17 +149,22 @@
     start() {
       if (this.running) return;
       if (reducedMotion.matches) {
+        this.canvas.dataset.runState = "reduced";
         this.resize();
         this.draw(16, 0);
         return;
       }
       this.running = true;
+      this.canvas.dataset.runState = "running";
       this.lastFrame = performance.now();
+      this.frameSampleStarted = this.lastFrame;
+      this.frameSampleCount = 0;
       this.frameRequest = requestAnimationFrame(this.frame);
     }
 
     stop() {
       this.running = false;
+      this.canvas.dataset.runState = "stopped";
       if (this.frameRequest) cancelAnimationFrame(this.frameRequest);
       this.frameRequest = 0;
     }
@@ -178,11 +186,19 @@
       const delta = Math.min(elapsed / 1000, 0.05);
       this.lastFrame = this.frameInterval ? now - (elapsed % this.frameInterval) : now;
       this.draw(now / 1000, delta);
+      this.frameSampleCount += 1;
+      const sampleElapsed = now - this.frameSampleStarted;
+      if (sampleElapsed >= 1000) {
+        this.canvas.dataset.measuredFps = (this.frameSampleCount * 1000 / sampleElapsed).toFixed(1);
+        this.frameSampleStarted = now;
+        this.frameSampleCount = 0;
+      }
 
       if (this.visible && !document.hidden && !reducedMotion.matches) {
         this.frameRequest = requestAnimationFrame(this.frame);
       } else {
         this.running = false;
+        this.canvas.dataset.runState = "stopped";
       }
     }
 
@@ -191,7 +207,7 @@
 
   // ── Fluid smoke engine ─────────────────────────────────────────────────
   // A coarse stable-fluids solver (semi-Lagrangian advection + pressure
-  // projection + vorticity confinement) drives the hero and contact plumes.
+  // projection + vorticity confinement) drives every smoke surface on the site.
   // Two scalar channels ride the velocity field: smoke density and "warmth"
   // (fresh brown-carbon → aged blue-grey). A guide flow holds the plume to
   // its editorial silhouette when idle; the pointer is a soft moving
@@ -203,6 +219,7 @@
     coolThin: [156, 175, 187],
     coolDense: [78, 99, 118]
   };
+  const smokeColor = (tone, alpha = 1) => `rgba(${SMOKE_RAMP[tone].join(", ")}, ${alpha})`;
 
   const heroSpine = (width, height) => (width < 720
     ? {
@@ -236,6 +253,22 @@
         widthScale: 0.78
       });
 
+  const researchSpine = (width, height) => ({
+    start: { x: width * 0.1, y: height * 0.74 },
+    controlA: { x: width * 0.31, y: height * 0.45 },
+    controlB: { x: width * 0.67, y: height * 0.46 },
+    end: { x: width * 0.95, y: height * 0.35 },
+    widthScale: 0.72
+  });
+
+  const labSpine = (width, height) => ({
+    start: { x: width * 0.07, y: height * 0.74 },
+    controlA: { x: width * 0.34, y: height * 0.7 },
+    controlB: { x: width * 0.67, y: height * 0.31 },
+    end: { x: width * 0.93, y: height * 0.27 },
+    widthScale: 0.82
+  });
+
   class SmokePlumeSurface extends CanvasSurface {
     constructor(canvas, options = {}) {
       super(canvas);
@@ -251,8 +284,24 @@
         frameRate: options.frameRate ?? 30,
         smallFrameRate: options.smallFrameRate ?? 24,
         envelopeAlpha: options.envelopeAlpha ?? 1,
+        warmupSteps: options.warmupSteps ?? 150,
+        prefill: options.prefill ?? 0,
         geometry: options.geometry ?? heroSpine
       };
+      this.enabled = options.enabled ?? true;
+      this.physics = {
+        transitMultiplier: options.transitMultiplier ?? 1,
+        jetMultiplier: options.jetMultiplier ?? 1,
+        guideWidth: options.guideWidth ?? 1,
+        guideRelax: options.guideRelax ?? 2.6,
+        buoyancy: options.buoyancy ?? 1.35,
+        vorticity: options.vorticity ?? 3.6,
+        dissipation: options.dissipation ?? 0.11,
+        warmDecay: options.warmDecay ?? 0.14,
+        strayDecay: options.strayDecay ?? 0.55,
+        lateDecay: options.lateDecay ?? 1.6
+      };
+      this.guideRebuildTimer = 0;
       this.dt = 1 / 30;
       this.simTime = 0;
       this.acc = 0;
@@ -275,6 +324,46 @@
         seed = (seed * 1664525 + 1013904223) >>> 0;
         return seed / 4294967296;
       };
+    }
+
+    start() {
+      if (!this.enabled) return;
+      super.start();
+    }
+
+    setEnabled(enabled) {
+      this.enabled = enabled;
+      if (enabled) {
+        const visibilityTarget = this.canvas.closest(".story-visual") || this.canvas;
+        const rect = visibilityTarget.getBoundingClientRect();
+        this.visible = rect.bottom > -180 && rect.top < window.innerHeight + 180;
+        this.start();
+      } else {
+        this.stop();
+      }
+    }
+
+    setPhysics(parameters, rebuildGuide = false) {
+      Object.assign(this.physics, parameters);
+      if (rebuildGuide) this.scheduleGuideRebuild();
+      else if (!this.running) this.invalidate();
+    }
+
+    scheduleGuideRebuild(delay = 90) {
+      window.clearTimeout(this.guideRebuildTimer);
+      this.guideRebuildTimer = window.setTimeout(() => {
+        this.guideRebuildTimer = 0;
+        this.rebuildGuide();
+      }, delay);
+    }
+
+    rebuildGuide() {
+      if (!this.gw || !this.gU) return;
+      [this.gU, this.gV, this.gK, this.gT, this.gNx, this.gNy].forEach((field) => field.fill(0));
+      this.spine = this.opts.geometry(this.width, this.height);
+      this.buildGuide();
+      this.buildEnvelope();
+      this.invalidate();
     }
 
     setPointer(x, y, active = true) {
@@ -322,6 +411,8 @@
       this.cellY = this.height / this.gh;
 
       const size = this.gw * this.gh;
+      this.canvas.dataset.gridCells = String(size);
+      this.canvas.dataset.effectiveFrameRate = (1000 / this.frameInterval).toFixed(0);
       this.u = new Float32Array(size);
       this.v = new Float32Array(size);
       this.u0 = new Float32Array(size);
@@ -345,6 +436,7 @@
       this.iterA = this.tier ? 9 : 13;
       this.iterB = this.tier ? 6 : 9;
       this.buildGuide();
+      this.prefillDensity();
       this.buildFade();
       this.buildEnvelope();
       this.initParticles(small);
@@ -360,7 +452,21 @@
       this.acc = 0;
       this.stepMs = 0;
       this.calmFrames = 0;
-      this.warmupRemaining = 150;
+      this.warmupRemaining = this.opts.warmupSteps;
+    }
+
+    prefillDensity() {
+      if (!this.opts.prefill) return;
+      for (let i = 0; i < this.den.length; i += 1) {
+        const guide = this.gK[i];
+        if (guide < 0.004) continue;
+        const age = this.gT[i];
+        const density = this.opts.prefill * guide * lerp(1, 0.42, age);
+        this.den[i] = density;
+        this.wrm[i] = density * Math.exp(-age * 1.35);
+        this.u[i] = this.gU[i] * 0.72;
+        this.v[i] = this.gV[i] * 0.72;
+      }
     }
 
     buildGuide() {
@@ -375,14 +481,14 @@
         prev = p;
       }
       spineCells /= this.cell;
-      this.transitSpeed = spineCells / 15;
+      this.transitSpeed = spineCells / 15 * this.physics.transitMultiplier;
 
       const steps = 72;
       for (let s = 0; s <= steps; s += 1) {
         const t = s / steps;
         const point = this.spinePoint(t);
         const tangent = this.spineTangent(t);
-        const radiusCss = lerp(0.02, 0.165, Math.pow(t, 0.78)) * scaleMin * this.spine.widthScale;
+        const radiusCss = lerp(0.02, 0.165, Math.pow(t, 0.78)) * scaleMin * this.spine.widthScale * this.physics.guideWidth;
         const radius = Math.max(1.6, radiusCss / this.cell);
         const speed = this.transitSpeed * lerp(1.4, 0.6, t);
         const px = point.x / this.cell;
@@ -444,7 +550,7 @@
       for (let s = 0; s <= 9; s += 1) {
         const t = s / 9;
         const point = this.spinePoint(t);
-        const radius = Math.max(6, lerp(0.05, 0.24, Math.pow(t, 0.9)) * scaleMin * this.spine.widthScale / scale);
+        const radius = Math.max(6, lerp(0.05, 0.24, Math.pow(t, 0.9)) * scaleMin * this.spine.widthScale * this.physics.guideWidth / scale);
         const cool = clamp(t * 0.85 + this.opts.coolBias, 0, 1);
         const r = Math.round(lerp(SMOKE_RAMP.warmThin[0], SMOKE_RAMP.coolThin[0], cool));
         const g = Math.round(lerp(SMOKE_RAMP.warmThin[1], SMOKE_RAMP.coolThin[1], cool));
@@ -546,10 +652,10 @@
 
     applyForces(dt) {
       const { gw, gh, u, v, den, gU, gV, gK, gT, gNx, gNy } = this;
-      const relaxRate = 2.6 * dt;
+      const relaxRate = this.physics.guideRelax * dt;
       const swayA = Math.sin(this.simTime * 0.42) * 2.4 * dt;
       const swayB = Math.sin(this.simTime * 0.23 + 1.7) * 1.6 * dt;
-      const buoyDt = 1.35 * dt;
+      const buoyDt = this.physics.buoyancy * dt;
       for (let y = 1; y < gh - 1; y += 1) {
         const row = y * gw;
         for (let x = 1; x < gw - 1; x += 1) {
@@ -578,7 +684,7 @@
           crl[i] = 0.5 * ((v[i + 1] - v[i - 1]) - (u[i + gw] - u[i - gw]));
         }
       }
-      const eps = 3.6 * dt;
+      const eps = this.physics.vorticity * dt;
       for (let y = 2; y < gh - 2; y += 1) {
         const row = y * gw;
         for (let x = 2; x < gw - 2; x += 1) {
@@ -603,7 +709,7 @@
       const sinW = Math.sin(wobble);
       const jx = tangent.x * cosW - tangent.y * sinW;
       const jy = tangent.x * sinW + tangent.y * cosW;
-      const jet = this.transitSpeed * 1.35 * flicker;
+      const jet = this.transitSpeed * 1.35 * this.physics.jetMultiplier * flicker;
       const source = this.spinePoint(0.008);
       const px = clamp(source.x / this.cell, 2, gw - 3);
       const py = clamp(source.y / this.cell, 2, gh - 3);
@@ -689,10 +795,10 @@
       const { gw, gh, u, v, den, den0, wrm, wrm0, gK, gT } = this;
       const maxX = gw - 1.5;
       const maxY = gh - 1.5;
-      const dis = Math.exp(-dt * 0.11);
-      const disWarm = dis * Math.exp(-dt * 0.14);
-      const strayDt = dt * 0.55;
-      const lateDt = dt * 1.6;
+      const dis = Math.exp(-dt * this.physics.dissipation);
+      const disWarm = dis * Math.exp(-dt * this.physics.warmDecay);
+      const strayDt = dt * this.physics.strayDecay;
+      const lateDt = dt * this.physics.lateDecay;
       for (let y = 1; y < gh - 1; y += 1) {
         const row = y * gw;
         for (let x = 1; x < gw - 1; x += 1) {
@@ -713,7 +819,7 @@
           const w01 = t1 * s0;
           const w11 = t1 * s1;
           const tAge = gT[i];
-          const stray = 1 - strayDt * (1 - Math.min(1, gK[i] * 2.4)) - (tAge > 0.74 ? lateDt * (tAge - 0.74) : 0);
+          const stray = Math.max(0, 1 - strayDt * (1 - Math.min(1, gK[i] * 2.4)) - (tAge > 0.74 ? lateDt * (tAge - 0.74) : 0));
           den[i] = dis * stray * (w00 * den0[b] + w10 * den0[b + 1] + w01 * den0[b + gw] + w11 * den0[b + gw + 1]);
           wrm[i] = disWarm * stray * (w00 * wrm0[b] + w10 * wrm0[b + 1] + w01 * wrm0[b + gw] + w11 * wrm0[b + gw + 1]);
         }
@@ -956,6 +1062,30 @@
     }
   }
 
+  class ResearchPlumeSurface extends SmokePlumeSurface {
+    constructor(canvas) {
+      super(canvas, {
+        enabled: false,
+        geometry: researchSpine,
+        emission: 0.72,
+        alpha: 0.72,
+        coolBias: 0.12,
+        showSource: true,
+        particleScale: 0.36,
+        envelopeAlpha: 0.58,
+        prefill: 0.34,
+        maxCells: 4700,
+        smallMaxCells: 3400,
+        frameRate: 24,
+        smallFrameRate: 24,
+        warmupSteps: 88,
+        vorticity: 2.4,
+        guideRelax: 3.2,
+        seed: 0x31b9d27
+      });
+    }
+  }
+
   class ModelSurface extends CanvasSurface {
     constructor(canvas) {
       super(canvas);
@@ -967,6 +1097,18 @@
       this.progress = 0.45;
       this.paused = false;
       this.frozenTime = 0;
+      let grainSeed = 0x6d2f431;
+      const grainRandom = () => {
+        grainSeed = (grainSeed * 1664525 + 1013904223) >>> 0;
+        return grainSeed / 4294967296;
+      };
+      this.grains = Array.from({ length: 26 }, () => ({
+        x: grainRandom(),
+        y: grainRandom(),
+        size: 0.55 + grainRandom() * 1.25,
+        phase: grainRandom() * Math.PI * 2,
+        warm: grainRandom() > 0.58
+      }));
     }
 
     setScene(scene) {
@@ -981,7 +1123,7 @@
 
     setProgress(progress) {
       this.progress = clamp(progress, 0, 1);
-      if (this.paused || reducedMotion.matches) this.draw(this.frozenTime || 12);
+      if (this.paused || reducedMotion.matches || (this.scene === "plume" && !this.running)) this.draw(this.frozenTime || 12);
     }
 
     setPaused(paused) {
@@ -1025,6 +1167,8 @@
       ctx.translate(this.transitionDirection * (1 - mix) * 14, 0);
       this.drawScene(this.scene, sceneTime);
       ctx.restore();
+
+      if (this.scene === "plume" && mix >= 1 && !this.paused && !reducedMotion.matches) this.stop();
     }
 
     drawScene(scene, time) {
@@ -1032,6 +1176,26 @@
       if (scene === "plume") this.drawPlume(time);
       if (scene === "trajectory") this.drawTrajectory(time);
       if (scene === "grid") this.drawGrid(time);
+      if (scene !== "plume") this.drawGrain(scene, time);
+    }
+
+    drawGrain(scene, time) {
+      const { ctx, width, height } = this;
+      const coolBias = scene === "grid" ? 0.76 : scene === "trajectory" ? 0.58 : 0.38;
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      this.grains.forEach((grain, index) => {
+        const x = grain.x * width + Math.cos(time * 0.11 + grain.phase) * 5;
+        const y = grain.y * height + Math.sin(time * 0.09 + grain.phase) * 4;
+        const cool = grain.warm ? coolBias < 0.5 : coolBias >= 0.5;
+        ctx.beginPath();
+        ctx.arc(x, y, grain.size, 0, Math.PI * 2);
+        ctx.fillStyle = cool
+          ? smokeColor(index % 4 === 0 ? "coolThin" : "coolDense", 0.12 + (index % 3) * 0.035)
+          : smokeColor(index % 5 === 0 ? "warmThin" : "warmDense", 0.13 + (index % 3) * 0.04);
+        ctx.fill();
+      });
+      ctx.restore();
     }
 
     cubic(start, controlA, controlB, end, t) {
@@ -1055,15 +1219,15 @@
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(scale, scale);
-      this.drawGlow(0, 0, 34, "rgba(223, 156, 109, 0.32)");
-      ctx.fillStyle = "rgba(223, 156, 109, 0.96)";
+      this.drawGlow(0, 0, 34, smokeColor("warmThin", 0.32));
+      ctx.fillStyle = smokeColor("warmThin", 0.96);
       ctx.beginPath();
       ctx.moveTo(-5, 8);
       ctx.bezierCurveTo(-11, -3, 0, -10, 3, -22);
       ctx.bezierCurveTo(11, -10, 14, 0, 7, 9);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = "rgba(255, 218, 175, 0.9)";
+      ctx.fillStyle = smokeColor("warmDense", 0.9);
       ctx.beginPath();
       ctx.moveTo(-1, 7);
       ctx.quadraticCurveTo(-4, 0, 3, -8);
@@ -1109,9 +1273,9 @@
       const beamStrength = 0.18 + this.progress * 0.12 + Math.sin(time * 0.9) * 0.035;
 
       const beam = ctx.createLinearGradient(0, cy, cx, cy);
-      beam.addColorStop(0, "rgba(139, 182, 201, 0)");
-      beam.addColorStop(0.72, `rgba(139, 182, 201, ${beamStrength})`);
-      beam.addColorStop(1, `rgba(223, 156, 109, ${0.28 + this.progress * 0.12})`);
+      beam.addColorStop(0, smokeColor("coolThin", 0));
+      beam.addColorStop(0.72, smokeColor("coolThin", beamStrength));
+      beam.addColorStop(1, smokeColor("warmThin", 0.28 + this.progress * 0.12));
       ctx.fillStyle = beam;
       ctx.beginPath();
       ctx.moveTo(-20, cy - radius * 0.7);
@@ -1121,7 +1285,7 @@
       ctx.closePath();
       ctx.fill();
 
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.34)";
+      ctx.strokeStyle = smokeColor("coolThin", 0.34);
       ctx.lineWidth = 1;
       for (let ray = -2; ray <= 2; ray += 1) {
         ctx.beginPath();
@@ -1130,16 +1294,16 @@
         ctx.stroke();
       }
 
-      this.drawGlow(cx, cy, radius * 1.75, "rgba(191, 106, 61, 0.2)");
+      this.drawGlow(cx, cy, radius * 1.75, smokeColor("warmThin", 0.2));
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(pulse, pulse);
       const particle = ctx.createRadialGradient(-radius * 0.22, -radius * 0.25, radius * 0.08, 0, 0, radius);
-      particle.addColorStop(0, "rgba(240, 174, 123, 0.88)");
-      particle.addColorStop(0.46, "rgba(178, 91, 49, 0.72)");
-      particle.addColorStop(1, "rgba(72, 52, 43, 0.56)");
+      particle.addColorStop(0, smokeColor("warmThin", 0.88));
+      particle.addColorStop(0.46, smokeColor("warmDense", 0.72));
+      particle.addColorStop(1, smokeColor("warmDense", 0.56));
       ctx.fillStyle = particle;
-      ctx.strokeStyle = "rgba(242, 192, 151, 0.48)";
+      ctx.strokeStyle = smokeColor("warmThin", 0.48);
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       for (let point = 0; point <= 52; point += 1) {
@@ -1158,7 +1322,7 @@
         [-0.42, -0.24, 4], [-0.12, -0.43, 3], [0.22, -0.26, 5], [0.42, 0.08, 3],
         [0.08, 0.28, 4], [-0.27, 0.32, 3], [-0.04, -0.02, 5]
       ];
-      ctx.strokeStyle = "rgba(255, 223, 190, 0.22)";
+      ctx.strokeStyle = smokeColor("warmThin", 0.22);
       ctx.lineWidth = 1;
       nodes.forEach(([nx, ny], index) => {
         const [tx, ty] = nodes[(index + 2) % nodes.length];
@@ -1172,12 +1336,12 @@
         const driftY = Math.sin(time * 0.72 + index * 1.4) * 2.2;
         ctx.beginPath();
         ctx.arc(nx * radius + driftX, ny * radius + driftY, size, 0, Math.PI * 2);
-        ctx.fillStyle = index % 3 === 0 ? "rgba(139, 182, 201, 0.9)" : "rgba(255, 213, 171, 0.9)";
+        ctx.fillStyle = index % 3 === 0 ? smokeColor("coolThin", 0.9) : smokeColor("warmThin", 0.9);
         ctx.fill();
       });
       ctx.restore();
 
-      ctx.strokeStyle = "rgba(223, 156, 109, 0.34)";
+      ctx.strokeStyle = smokeColor("warmThin", 0.34);
       ctx.lineWidth = 1.2;
       for (let arc = 0; arc < 3; arc += 1) {
         ctx.beginPath();
@@ -1190,22 +1354,17 @@
         const orbit = radius * (1.12 + (mote % 3) * 0.16);
         ctx.beginPath();
         ctx.arc(cx + Math.cos(angle) * orbit, cy + Math.sin(angle) * orbit, 1 + (mote % 3) * 0.45, 0, Math.PI * 2);
-        ctx.fillStyle = mote % 4 === 0 ? "rgba(223, 156, 109, 0.72)" : "rgba(139, 182, 201, 0.38)";
+        ctx.fillStyle = mote % 4 === 0 ? smokeColor("warmThin", 0.72) : smokeColor("coolThin", 0.38);
         ctx.fill();
       }
     }
 
     drawPlume(time) {
       const { ctx, width, height } = this;
-      const sourceX = width * 0.1;
-      const sourceY = height * 0.73;
-      const endX = width * 0.95;
-      const endY = height * 0.35;
-
       const sunX = width * 0.8;
       const sunY = height * 0.16;
-      this.drawGlow(sunX, sunY, Math.min(width, height) * 0.2, "rgba(243, 189, 126, 0.17)");
-      ctx.strokeStyle = "rgba(242, 190, 130, 0.48)";
+      this.drawGlow(sunX, sunY, Math.min(width, height) * 0.2, smokeColor("warmThin", 0.17));
+      ctx.strokeStyle = smokeColor("warmThin", 0.48);
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(sunX, sunY, 11, 0, Math.PI * 2);
@@ -1218,42 +1377,14 @@
         ctx.stroke();
       }
 
-      for (let layer = 4; layer >= 0; layer -= 1) {
-        const breath = Math.sin(time * 0.55 + layer * 1.2) * height * 0.01;
-        const spread = height * (0.045 + layer * 0.024 + this.progress * 0.018) + breath;
-        const offset = (layer - 2) * height * 0.018 + breath * 0.45;
-        const gradient = ctx.createLinearGradient(sourceX, 0, endX, 0);
-        gradient.addColorStop(0, `rgba(172, 96, 54, ${0.18 + layer * 0.025})`);
-        gradient.addColorStop(0.48, `rgba(166, 124, 96, ${0.13 + layer * 0.018})`);
-        gradient.addColorStop(1, `rgba(106, 135, 153, ${0.06 + layer * 0.015})`);
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.moveTo(sourceX, sourceY);
-        ctx.bezierCurveTo(width * 0.31, sourceY - height * 0.3 + offset - spread, width * 0.64, endY + height * 0.11 - spread, endX, endY - spread * 0.55);
-        ctx.bezierCurveTo(width * 0.7, endY + spread * 1.3, width * 0.35, sourceY - height * 0.13 + offset + spread, sourceX, sourceY);
-        ctx.closePath();
-        ctx.fill();
-      }
-
-      ctx.strokeStyle = "rgba(228, 178, 133, 0.4)";
-      ctx.lineWidth = 1.2;
+      const spine = researchSpine(width, height);
+      ctx.strokeStyle = smokeColor("coolThin", 0.18);
+      ctx.setLineDash([3, 7]);
       ctx.beginPath();
-      ctx.moveTo(sourceX, sourceY);
-      ctx.bezierCurveTo(width * 0.31, sourceY - height * 0.26, width * 0.64, endY + height * 0.08, endX, endY);
+      ctx.moveTo(spine.start.x, spine.start.y);
+      ctx.bezierCurveTo(spine.controlA.x, spine.controlA.y, spine.controlB.x, spine.controlB.y, spine.end.x, spine.end.y);
       ctx.stroke();
-
-      for (let index = 0; index < 46; index += 1) {
-        const fraction = (index / 46 + time * (0.018 + this.progress * 0.009)) % 1;
-        const x = this.cubic(sourceX, width * 0.31, width * 0.64, endX, fraction);
-        const center = this.cubic(sourceY, sourceY - height * 0.26, endY + height * 0.08, endY, fraction);
-        const spread = height * (0.012 + fraction * 0.11);
-        const y = center + Math.sin(index * 7.7 + time * 0.5) * spread;
-        ctx.beginPath();
-        ctx.arc(x, y, 1.2 + (index % 4) * 0.65, 0, Math.PI * 2);
-        ctx.fillStyle = fraction < 0.52 ? "rgba(224, 151, 101, 0.66)" : "rgba(150, 173, 186, 0.46)";
-        ctx.fill();
-      }
-      this.drawFire(sourceX, sourceY, 0.72);
+      ctx.setLineDash([]);
     }
 
     drawTrajectory(time) {
@@ -1261,7 +1392,7 @@
       const source = { x: width * 0.12, y: height * 0.77 };
       const sample = { x: width * 0.86, y: height * 0.27 };
 
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.1)";
+      ctx.strokeStyle = smokeColor("coolThin", 0.1);
       ctx.lineWidth = 1;
       for (let contour = 0; contour < 6; contour += 1) {
         ctx.beginPath();
@@ -1274,7 +1405,9 @@
         const offset = (member - 4) / 4;
         const controlA = { x: width * (0.31 + offset * 0.025), y: height * (0.75 + offset * 0.08) };
         const controlB = { x: width * (0.56 + offset * 0.04), y: height * (0.13 + offset * 0.1) };
-        ctx.strokeStyle = member === 4 ? "rgba(232, 162, 111, 0.9)" : `rgba(139, 182, 201, ${0.12 + (4 - Math.abs(member - 4)) * 0.022})`;
+        ctx.strokeStyle = member === 4
+          ? smokeColor("warmThin", 0.9)
+          : smokeColor("coolThin", 0.12 + (4 - Math.abs(member - 4)) * 0.022);
         ctx.lineWidth = member === 4 ? 1.8 : 1;
         const reveal = clamp(0.18 + this.progress * 1.04 + member * 0.015, 0, 1);
         ctx.beginPath();
@@ -1292,18 +1425,18 @@
         const moving = (time * (0.035 + glint * 0.006) + glint * 0.29) % 1;
         const movingX = this.cubic(source.x, width * 0.31, width * 0.56, sample.x, moving);
         const movingY = this.cubic(source.y, height * 0.75, height * 0.13, sample.y, moving);
-        this.drawGlow(movingX, movingY, glint === 0 ? 18 : 11, "rgba(235, 179, 129, 0.22)");
+        this.drawGlow(movingX, movingY, glint === 0 ? 18 : 11, smokeColor("warmThin", 0.22));
         ctx.beginPath();
         ctx.arc(movingX, movingY, glint === 0 ? 3 : 2, 0, Math.PI * 2);
-        ctx.fillStyle = glint === 0 ? "rgba(246, 190, 139, 0.96)" : "rgba(139, 182, 201, 0.8)";
+        ctx.fillStyle = glint === 0 ? smokeColor("warmThin", 0.96) : smokeColor("coolThin", 0.8);
         ctx.fill();
       }
 
       this.drawFire(source.x, source.y, 0.72);
-      this.drawGlow(sample.x, sample.y, 32, "rgba(139, 182, 201, 0.18)");
+      this.drawGlow(sample.x, sample.y, 32, smokeColor("coolThin", 0.18));
       ctx.beginPath();
       ctx.arc(sample.x, sample.y, 11, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.82)";
+      ctx.strokeStyle = smokeColor("coolThin", 0.82);
       ctx.lineWidth = 1.5;
       ctx.stroke();
       this.drawPlane(sample.x - 8, sample.y - 28, 0.56, -0.2);
@@ -1314,17 +1447,17 @@
       const cx = width * 0.52;
       const cy = height * 0.5;
       const radius = Math.min(width, height) * 0.34;
-      this.drawGlow(cx, cy, radius * 1.55, "rgba(91, 136, 163, 0.18)");
+      this.drawGlow(cx, cy, radius * 1.55, smokeColor("coolDense", 0.18));
 
       const globe = ctx.createRadialGradient(cx - radius * 0.3, cy - radius * 0.38, radius * 0.05, cx, cy, radius);
-      globe.addColorStop(0, "rgba(197, 217, 219, 0.23)");
-      globe.addColorStop(0.55, "rgba(78, 116, 139, 0.15)");
+      globe.addColorStop(0, smokeColor("coolThin", 0.23));
+      globe.addColorStop(0.55, smokeColor("coolDense", 0.15));
       globe.addColorStop(1, "rgba(18, 28, 38, 0.4)");
       ctx.fillStyle = globe;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.38)";
+      ctx.strokeStyle = smokeColor("coolThin", 0.38);
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -1354,9 +1487,9 @@
       ctx.fill();
 
       const plume = ctx.createLinearGradient(cx - radius, 0, cx + radius, 0);
-      plume.addColorStop(0, "rgba(211, 111, 59, 0.76)");
-      plume.addColorStop(0.56, "rgba(206, 144, 102, 0.4)");
-      plume.addColorStop(1, "rgba(139, 182, 201, 0.12)");
+      plume.addColorStop(0, smokeColor("warmDense", 0.76));
+      plume.addColorStop(0.56, smokeColor("warmThin", 0.4));
+      plume.addColorStop(1, smokeColor("coolThin", 0.12));
       ctx.fillStyle = plume;
       ctx.globalAlpha = 0.58 + this.progress * 0.42;
       ctx.beginPath();
@@ -1373,50 +1506,51 @@
         const orbit = radius * (1.14 + (index % 2) * 0.08);
         const x = cx + Math.cos(angle) * orbit;
         const y = cy + Math.sin(angle) * orbit;
-        ctx.strokeStyle = "rgba(139, 182, 201, 0.14)";
+        ctx.strokeStyle = smokeColor("coolThin", 0.14);
         ctx.beginPath();
         ctx.moveTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
         ctx.lineTo(x, y);
         ctx.stroke();
-        this.drawGlow(x, y, 13 + Math.sin(time + index) * 2, "rgba(139, 182, 201, 0.2)");
+        this.drawGlow(x, y, 13 + Math.sin(time + index) * 2, smokeColor("coolThin", 0.2));
         ctx.beginPath();
         ctx.arc(x, y, 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = index < 2 ? "rgba(223, 156, 109, 0.9)" : "rgba(139, 182, 201, 0.9)";
+        ctx.fillStyle = index < 2 ? smokeColor("warmThin", 0.9) : smokeColor("coolThin", 0.9);
         ctx.fill();
       });
 
       const glint = (time * 0.055) % 1;
       const glintX = cx - radius * 0.86 + glint * radius * 1.72;
       const glintY = cy + radius * (0.34 - glint * 0.7 + Math.sin(glint * Math.PI) * 0.16);
-      this.drawGlow(glintX, glintY, 19, "rgba(235, 179, 129, 0.2)");
+      this.drawGlow(glintX, glintY, 19, smokeColor("warmThin", 0.2));
       ctx.beginPath();
       ctx.arc(glintX, glintY, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(242, 188, 137, 0.9)";
+      ctx.fillStyle = smokeColor("warmThin", 0.9);
       ctx.fill();
     }
   }
 
-  class LabSurface extends CanvasSurface {
+  class LabSurface extends SmokePlumeSurface {
     constructor(canvas) {
-      super(canvas);
+      super(canvas, {
+        geometry: labSpine,
+        emission: 1,
+        alpha: 1,
+        showSource: true,
+        particleScale: 0.52,
+        envelopeAlpha: 0.82,
+        prefill: 0.58,
+        maxCells: 4700,
+        smallMaxCells: 3600,
+        frameRate: 24,
+        smallFrameRate: 24,
+        warmupSteps: 96,
+        lateDecay: 0.9,
+        seed: 0x7ac31f2
+      });
       this.age = 18;
       this.wind = 7.2;
       this.mixing = 46;
       this.paused = false;
-      this.elapsed = 0;
-
-      let randomState = 0x7ac31f2;
-      const random = () => {
-        randomState = (randomState * 1664525 + 1013904223) >>> 0;
-        return randomState / 4294967296;
-      };
-      this.seeds = Array.from({ length: 190 }, () => ({
-        phase: random(),
-        offset: random() * 2 - 1,
-        jitter: random() * Math.PI * 2,
-        size: 0.45 + random() * 1.1,
-        tone: random()
-      }));
     }
 
     normalizedState() {
@@ -1424,12 +1558,7 @@
       const wind = clamp((this.wind - 2) / 13, 0, 1);
       const mixing = clamp((this.mixing - 10) / 80, 0, 1);
       const distance = this.age * this.wind * 3.6;
-      const distanceProgress = clamp(
-        (Math.log(distance) - Math.log(7.2)) / (Math.log(3888) - Math.log(7.2)),
-        0,
-        1
-      );
-      return { age, wind, mixing, distance, distanceProgress };
+      return { age, wind, mixing, distance };
     }
 
     metrics() {
@@ -1444,16 +1573,41 @@
       };
     }
 
-    cubic(start, controlA, controlB, end, t) {
-      const inverse = 1 - t;
-      return inverse ** 3 * start + 3 * inverse ** 2 * t * controlA + 3 * inverse * t ** 2 * controlB + t ** 3 * end;
+    setParameters(age, wind, mixing, immediate = false) {
+      this.age = age;
+      this.wind = wind;
+      this.mixing = mixing;
+      const state = this.normalizedState();
+      this.ageProgress = state.age;
+      this.opts.alpha = lerp(1, 0.88, state.mixing);
+      Object.assign(this.physics, {
+        transitMultiplier: lerp(0.6, 1.65, state.wind),
+        jetMultiplier: lerp(0.8, 1.45, state.wind),
+        guideWidth: lerp(0.65, 1.55, state.mixing),
+        vorticity: lerp(1.8, 6.2, state.mixing),
+        dissipation: lerp(0.07, 0.2, state.mixing),
+        warmDecay: lerp(0.07, 0.34, state.age)
+      });
+      if (this.gw) {
+        if (immediate) this.rebuildGuide();
+        else this.scheduleGuideRebuild();
+      }
+      if (!this.running) this.invalidate();
     }
 
-    pathPoint(path, t) {
-      return {
-        x: this.cubic(path.start.x, path.controlA.x, path.controlB.x, path.end.x, t),
-        y: this.cubic(path.start.y, path.controlA.y, path.controlB.y, path.end.y, t)
-      };
+    setPaused(paused) {
+      this.paused = paused;
+      if (paused) {
+        this.stop();
+        this.draw(performance.now() / 1000, 0);
+      } else {
+        this.start();
+      }
+    }
+
+    start() {
+      if (this.paused) return;
+      super.start();
     }
 
     drawPlane(x, y, scale = 1, angle = -0.12) {
@@ -1463,8 +1617,8 @@
       ctx.rotate(angle);
       ctx.scale(scale, scale);
       ctx.fillStyle = "rgba(231, 232, 225, 0.92)";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-      ctx.shadowBlur = 10;
+      ctx.strokeStyle = smokeColor("coolDense", 0.72);
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(-24, 2);
       ctx.lineTo(-5, -2);
@@ -1480,51 +1634,20 @@
       ctx.lineTo(-24, 8);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
       ctx.restore();
     }
 
-    start() {
-      if (this.paused) {
-        this.draw(performance.now() / 1000, 0);
-        return;
-      }
-      super.start();
-    }
-
-    invalidate() {
-      if (this.paused || reducedMotion.matches || !this.running) {
-        this.draw(performance.now() / 1000, 0);
-      }
-      if (!this.paused && this.visible && !document.hidden && !reducedMotion.matches && !this.running) {
-        this.start();
-      }
-    }
-
-    draw(time, delta = 0) {
+    drawInstrument(time) {
       const { ctx, width, height } = this;
-      if (!width || !height) return;
-      if (!this.paused && !reducedMotion.matches) this.elapsed += delta;
-      ctx.clearRect(0, 0, width, height);
-
+      if (!this.spine) return;
       const state = this.normalizedState();
-      const source = { x: width * 0.07, y: height * 0.74 };
-      const reach = width * lerp(0.5, 0.92, state.distanceProgress);
-      const lift = height * lerp(0.18, 0.4, state.wind);
-      const spread = height * lerp(0.05, 0.3, state.mixing);
-      const dilution = lerp(1, 0.3, state.mixing);
-      const particleSpeed = lerp(0.015, 0.07, state.wind);
-      const path = {
-        start: source,
-        controlA: { x: source.x + reach * 0.32, y: source.y - lift * 0.06 },
-        controlB: { x: source.x + reach * 0.72, y: source.y - lift * 0.9 },
-        end: { x: source.x + reach, y: source.y - lift }
-      };
 
       ctx.save();
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.08)";
+      ctx.strokeStyle = smokeColor("coolThin", 0.1);
       ctx.lineWidth = 1;
       ctx.setLineDash([22, 18]);
-      ctx.lineDashOffset = -this.elapsed * lerp(18, 95, state.wind);
+      ctx.lineDashOffset = -time * lerp(18, 95, state.wind);
       for (let flow = 0; flow < 5; flow += 1) {
         const y = height * (0.17 + flow * 0.115);
         ctx.beginPath();
@@ -1533,80 +1656,35 @@
         ctx.stroke();
       }
       ctx.setLineDash([]);
-      ctx.restore();
 
-      for (let layer = 5; layer >= 0; layer -= 1) {
-        const layerScale = 0.28 + layer * 0.14;
-        const breathing = Math.sin(this.elapsed * 0.55 + layer * 1.1) * spread * 0.025;
-        const layerSpread = spread * layerScale + breathing;
-        const gradient = ctx.createLinearGradient(source.x, source.y, path.end.x, path.end.y);
-        gradient.addColorStop(0, `rgba(178, 98, 55, ${(0.2 + layer * 0.018) * dilution})`);
-        gradient.addColorStop(0.48, `rgba(166, 126, 99, ${(0.13 + layer * 0.012) * dilution})`);
-        gradient.addColorStop(1, `rgba(100, 130, 150, ${(0.08 + layer * 0.009) * dilution})`);
-        ctx.beginPath();
-        ctx.moveTo(source.x, source.y - 3);
-        ctx.bezierCurveTo(path.controlA.x, path.controlA.y - layerSpread * 0.28, path.controlB.x, path.controlB.y - layerSpread, path.end.x, path.end.y - layerSpread * 0.72);
-        ctx.bezierCurveTo(path.controlB.x, path.controlB.y + layerSpread, path.controlA.x, path.controlA.y + layerSpread * 0.5, source.x, source.y + 3);
-        ctx.closePath();
-        ctx.fillStyle = gradient;
-        ctx.fill();
-      }
-
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      this.seeds.forEach((seed, index) => {
-        const life = (seed.phase + this.elapsed * particleSpeed) % 1;
-        const center = this.pathPoint(path, life);
-        const localSpread = spread * (0.12 + life * 0.9);
-        const y = center.y + seed.offset * localSpread + Math.sin(this.elapsed * 0.9 + seed.jitter) * (2 + state.mixing * 5);
-        const radius = (2 + life * 15) * seed.size * lerp(0.75, 1.22, state.mixing);
-        const alpha = Math.sin(Math.PI * life) * dilution;
-        const aged = clamp(state.age * 0.64 + life * 0.45, 0, 1);
-        const red = Math.round(lerp(216, 156, aged));
-        const green = Math.round(lerp(144, 175, aged));
-        const blue = Math.round(lerp(97, 187, aged));
-        ctx.beginPath();
-        ctx.ellipse(center.x, y, radius * 1.55, radius * 0.62, -0.25, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha * (seed.tone > 0.7 ? 0.17 : 0.1)})`;
-        ctx.fill();
-      });
-      ctx.restore();
-
-      ctx.strokeStyle = "rgba(222, 178, 138, 0.48)";
-      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = smokeColor("warmThin", 0.46);
       ctx.beginPath();
-      ctx.moveTo(path.start.x, path.start.y);
-      ctx.bezierCurveTo(path.controlA.x, path.controlA.y, path.controlB.x, path.controlB.y, path.end.x, path.end.y);
+      ctx.moveTo(this.spine.start.x, this.spine.start.y);
+      ctx.bezierCurveTo(this.spine.controlA.x, this.spine.controlA.y, this.spine.controlB.x, this.spine.controlB.y, this.spine.end.x, this.spine.end.y);
       ctx.stroke();
 
+      ctx.font = "9px 'IBM Plex Mono', monospace";
       [0.25, 0.5, 0.75].forEach((fraction) => {
-        const point = this.pathPoint(path, fraction);
+        const point = this.spinePoint(fraction);
         ctx.beginPath();
         ctx.arc(point.x, point.y, 2.8, 0, Math.PI * 2);
-        ctx.fillStyle = fraction < 0.6 ? "rgba(238, 164, 108, 0.9)" : "rgba(139, 182, 201, 0.9)";
+        ctx.fillStyle = fraction < 0.6 ? smokeColor("warmThin", 0.92) : smokeColor("coolThin", 0.92);
         ctx.fill();
-        ctx.fillStyle = "rgba(182, 191, 193, 0.72)";
-        ctx.font = "9px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = smokeColor("coolThin", 0.76);
         ctx.fillText(`${Math.max(1, Math.round(this.age * fraction))} h`, point.x + 8, point.y - 8);
       });
 
-      const sourceGlow = ctx.createRadialGradient(source.x, source.y, 0, source.x, source.y, 48);
-      sourceGlow.addColorStop(0, "rgba(247, 173, 108, 0.78)");
-      sourceGlow.addColorStop(0.26, "rgba(210, 101, 49, 0.24)");
-      sourceGlow.addColorStop(1, "rgba(191, 106, 61, 0)");
-      ctx.fillStyle = sourceGlow;
+      const source = this.spinePoint(0.004);
+      ctx.strokeStyle = smokeColor("warmThin", 0.88);
       ctx.beginPath();
-      ctx.arc(source.x, source.y, 48, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255, 188, 119, 0.96)";
-      ctx.beginPath();
-      ctx.arc(source.x, source.y, 5, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(source.x, source.y, 8, 0, Math.PI * 2);
+      ctx.stroke();
 
       const sampleProgress = lerp(0.12, 0.95, state.age);
-      const sample = this.pathPoint(path, sampleProgress);
-      const gateHeight = clamp(spread * (0.8 + sampleProgress * 0.7), 28, height * 0.3);
-      ctx.strokeStyle = "rgba(224, 227, 221, 0.28)";
+      const sample = this.spinePoint(sampleProgress);
+      const tangent = this.spineTangent(sampleProgress);
+      const gateHeight = clamp(lerp(34, height * 0.27, state.mixing) * (0.85 + sampleProgress * 0.45), 28, height * 0.3);
+      ctx.strokeStyle = "rgba(224, 227, 221, 0.3)";
       ctx.setLineDash([3, 5]);
       ctx.beginPath();
       ctx.moveTo(sample.x, sample.y - gateHeight);
@@ -1615,16 +1693,21 @@
       ctx.setLineDash([]);
       ctx.beginPath();
       ctx.arc(sample.x, sample.y, 11, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(139, 182, 201, 0.88)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = smokeColor("coolThin", 0.92);
+      ctx.lineWidth = 1;
       ctx.stroke();
-      this.drawPlane(sample.x - 4, sample.y - 30, width < 620 ? 0.52 : 0.65);
+      this.drawPlane(sample.x - 4, sample.y - 30, width < 620 ? 0.52 : 0.65, Math.atan2(tangent.y, tangent.x));
 
-      ctx.fillStyle = "rgba(221, 222, 215, 0.82)";
-      ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "rgba(221, 222, 215, 0.84)";
       ctx.textAlign = sample.x > width * 0.75 ? "right" : "left";
       ctx.fillText(`SAMPLE / +${Math.round(this.age)} H`, sample.x + (sample.x > width * 0.75 ? -15 : 15), sample.y + gateHeight + 18);
       ctx.textAlign = "left";
+      ctx.restore();
+    }
+
+    draw(time, delta = 0) {
+      super.draw(time, this.paused ? 0 : delta);
+      this.drawInstrument(time);
     }
   }
 
@@ -1741,6 +1824,8 @@
 
   function setupResearchScenes() {
     const canvas = document.querySelector("[data-model-canvas]");
+    const plumeCanvas = document.querySelector("[data-model-plume]");
+    const visual = canvas.closest(".story-visual");
     const label = document.querySelector("[data-scene-label]");
     const index = document.querySelector("[data-scene-index]");
     const kicker = document.querySelector("[data-scene-kicker]");
@@ -1752,6 +1837,7 @@
     const spine = storySteps.querySelector("[data-story-spine]");
     const progressFill = storySteps.querySelector("[data-story-progress]");
     const model = new ModelSurface(canvas);
+    const fluidPlume = new ResearchPlumeSurface(plumeCanvas);
     const scenes = {
       particle: {
         index: "01",
@@ -1780,6 +1866,13 @@
     };
 
     let activeStep = null;
+    let motionPaused = false;
+    const syncFluidPlume = () => {
+      const active = activeStep?.dataset.scene === "plume";
+      visual.classList.toggle("is-plume-active", active);
+      plumeCanvas.dataset.simEnabled = String(active && !motionPaused);
+      fluidPlume.setEnabled(active && !motionPaused);
+    };
     const activate = (step) => {
       if (!step || step === activeStep) return;
       activeStep = step;
@@ -1791,6 +1884,7 @@
       kicker.textContent = metadata.kicker;
       caption.textContent = metadata.caption;
       model.setScene(scene);
+      syncFluidPlume();
     };
 
     let framePending = false;
@@ -1860,7 +1954,9 @@
       motionToggle.setAttribute("aria-label", paused ? "Resume research animation" : "Pause research animation");
       motionToggle.querySelector("span:first-child").textContent = paused ? "▶" : "Ⅱ";
       motionLabel.textContent = paused ? "Resume animation" : "Pause animation";
+      motionPaused = paused;
       model.setPaused(paused);
+      syncFluidPlume();
     });
     activate(reducedMotion.matches ? steps[steps.length - 1] : steps[0]);
     queueSync();
@@ -1920,10 +2016,8 @@
     const toggle = document.querySelector("[data-lab-toggle]");
     const status = document.querySelector("[data-lab-status]");
 
-    const sync = () => {
-      lab.age = Number(age.value);
-      lab.wind = Number(wind.value);
-      lab.mixing = Number(mixing.value);
+    const sync = (immediate = false) => {
+      lab.setParameters(Number(age.value), Number(wind.value), Number(mixing.value), immediate);
       const metrics = lab.metrics();
       ageOutput.textContent = `${Math.round(lab.age)} h`;
       ageLabel.textContent = `+${Math.round(lab.age)} H`;
@@ -1941,7 +2035,6 @@
       age.setAttribute("aria-valuetext", `${Math.round(lab.age)} hours transport age`);
       wind.setAttribute("aria-valuetext", `${lab.wind.toFixed(1)} metres per second wind speed`);
       mixing.setAttribute("aria-valuetext", `${lab.mixing} percent mixing`);
-      lab.invalidate();
     };
 
     [age, wind, mixing].forEach((control) => control.addEventListener("input", () => {
@@ -1949,7 +2042,7 @@
         preset.classList.remove("is-active");
         preset.setAttribute("aria-pressed", "false");
       });
-      sync();
+      sync(false);
     }));
     presets.forEach((preset) => preset.addEventListener("click", () => {
       age.value = preset.dataset.ageValue;
@@ -1960,29 +2053,24 @@
         candidate.classList.toggle("is-active", active);
         candidate.setAttribute("aria-pressed", String(active));
       });
-      sync();
+      sync(true);
     }));
     toggle.addEventListener("click", () => {
-      lab.paused = !lab.paused;
+      const paused = !lab.paused;
+      lab.setPaused(paused);
       toggle.setAttribute("aria-pressed", String(lab.paused));
       toggle.innerHTML = lab.paused
         ? '<span aria-hidden="true">▶</span> Resume motion'
         : '<span aria-hidden="true">Ⅱ</span> Pause motion';
       status.textContent = lab.paused ? "PAUSED" : "PLAYING";
-      if (lab.paused) {
-        lab.stop();
-        lab.invalidate();
-      } else {
-        lab.start();
-      }
     });
 
     if (reducedMotion.matches) {
-      lab.paused = true;
+      lab.setPaused(true);
       toggle.hidden = true;
       status.textContent = "MOTION REDUCED";
     }
-    sync();
+    sync(true);
     lab.start();
   }
 

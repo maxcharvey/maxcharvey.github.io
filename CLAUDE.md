@@ -8,15 +8,17 @@ Personal academic site (static, no build step). Pushing to `main` deploys via th
 
 - `index.html` — all content. Sections: hero, research (`#research`), plume lab
   (`#methods`), projects (`#projects`, 4 inline SVG figures), outputs, about, contact.
-- `styles.css` — design system; palette custom properties at `:root` (lines 1–26).
+- `styles.css` — design system; palette custom properties at `:root`.
 - `script.js` — one IIFE:
   - `CanvasSurface` — base class: DPR cap (`data-max-dpr`), frame gate
     (`data-frame-rate`), ResizeObserver, IntersectionObserver (stops off-screen
     sims), reduced-motion single-draw.
   - `SmokePlumeSurface` — **the fluid smoke engine** (see below).
   - `HeroPlumeSurface` — thin subclass: interactive hero instance.
-  - `ModelSurface` — research-scene canvas (4 scenes: particle/plume/trajectory/grid).
-  - `LabSurface` — methods lab plume (layered beziers + particles, slider-driven).
+  - `ModelSurface` — research-scene canvas (particle/trajectory/grid plus quiet
+    scene-02 annotations); `ResearchPlumeSurface` supplies scene 02's fluid.
+  - `LabSurface` — third `SmokePlumeSurface` subclass; controls map directly to
+    transit, jet, warmth decay, vorticity, guide width, and dissipation.
   - `setup*()` functions at the bottom wire everything.
 
 ## Fluid smoke engine (added 2026-07-13)
@@ -24,8 +26,9 @@ Personal academic site (static, no build step). Pushing to `main` deploys via th
 Stable-fluids solver on a coarse grid: semi-Lagrangian advection, Gauss–Seidel
 pressure projection (open borders, p=0), vorticity confinement. Two advected
 scalars: `den` (smoke) and `wrm` (warmth; fresh brown-carbon → aged blue-grey).
-A precomputed **guide flow** along a cubic bezier spine (`heroSpine` /
-`contactSpine`) holds the idle silhouette; the **pointer is a soft obstacle
+A precomputed **guide flow** along a cubic bezier spine (`heroSpine`,
+`researchSpine`, `labSpine`, or `contactSpine`) holds the idle silhouette; the
+**pointer is a soft obstacle
 inside the pressure solve** (velocity constrained toward cursor velocity in a
 disk + density cleared), which produces leading-edge compression, flank
 splitting, curl shedding, and wake recombination. Rendering: grid-resolution
@@ -55,9 +58,12 @@ Tuning knobs (all in `SmokePlumeSurface`):
 | perf tier | step EMA > 7.5 ms for 45 frames → rebuild at 0.62× cells, 24 fps | safety valve |
 
 Instance options (`setupContactPlume` is the quiet reference): `emission`,
-`alpha`, `coolBias`, `showSource`, `particleScale`, `envelopeAlpha`,
-`maxCells`/`smallMaxCells` (16 500/8 600 hero; 9 000/6 000 contact), `frameRate`,
-`geometry`, `seed`.
+`alpha`, `coolBias`, `showSource`, `particleScale`, `envelopeAlpha`, `prefill`,
+`maxCells`/`smallMaxCells` (16 500/8 600 hero; 9 000/6 000 contact; secondary
+sims ≤4 700/3 600), `frameRate`, `geometry`, `seed`, plus default-preserving
+physics overrides (`transitMultiplier`, `jetMultiplier`, `guideWidth`,
+`guideRelax`, `buoyancy`, `vorticity`, `dissipation`, `warmDecay`,
+`strayDecay`, `lateDecay`).
 
 ## Gotchas learned the hard way
 
@@ -88,8 +94,8 @@ Instance options (`setupContactPlume` is the quiet reference): `emission`,
 
 ```bash
 python3 -m http.server 8123          # from repo root
-python3 dev/qa/shoot.py <outdir>     # screenshots: desktop/mobile/reduced, idle+pointer+wake, all sections
-python3 dev/qa/checks.py             # 12 interaction assertions + console-error capture
+python3 dev/qa/shoot.py <outdir>     # desktop/mobile/reduced, pointer/wake, all sections, OG capture
+python3 dev/qa/checks.py             # interactions, canvas paint/budget/fps, metadata, console errors
 ```
 
 Inspect the screenshots (hero copy readable, plume renders idle *and* under
@@ -100,16 +106,18 @@ revertable. Live-site sanity: `curl -s https://maxcharvey.github.io/script.js | 
 
 `eda9c8e` fluid hero → `58ab7c5` site-wide grading (contact on engine, legacy
 `PlumeSurface` removed, lab/model re-graded) → `2027b22` contact source fix.
-Deployed and verified live.
+Deployed and verified live. The visual-system roadmap below is implemented in
+the current tree: fluid lab/research surfaces, print figures, small-surface
+grading, and the generated social preview.
 
-## Roadmap — bring remaining visuals up to hero quality
+## Visual roadmap — implemented 2026-07-13
 
-Order chosen by visibility/impact; one commit per step, QA-gated.
+Implemented in visibility/impact order and QA-gated.
 
-1. **Palette tokens.** Mirror `SMOKE_RAMP` as CSS custom properties
+1. **Palette tokens — done.** Mirror `SMOKE_RAMP` as CSS custom properties
    (`--smoke-warm-thin` …) at `:root`; migrate hard-coded rgba() in CSS/SVG to
    them. Single source of truth before touching any figure.
-2. **Lab console → real fluid.** Drive `[data-lab-canvas]` with a third
+2. **Lab console → real fluid — done.** Drive `[data-lab-canvas]` with a third
    `SmokePlumeSurface` instance and map controls to physics: age → warm-decay
    constant + sample position; wind → `transitSpeed`/jet; mixing → vorticity +
    guide radius growth + dissipation. Needs small engine extensions
@@ -117,22 +125,22 @@ Order chosen by visibility/impact; one commit per step, QA-gated.
    debounce sliders). Keep readouts, presets, pause, aircraft transect and
    h-labels (labels belong in this instrument view, not the hero). This makes
    the "interactive method" literally the same physics as the hero.
-3. **Research scene 02 (plume).** Replace the layered-bezier plume in
+3. **Research scene 02 (plume) — done.** Replace the layered-bezier plume in
    `ModelSurface.drawPlume` with a quiet mini engine instance (≤5 k cells,
    24 fps, run only while scene active) or an engine-rendered static density
    snapshot. Re-grade scenes 01/03/04 glows/strokes to tokens; add sparse grain
    particles for material continuity. Never more than one non-hero sim animating
    per viewport.
-4. **Project SVG figures (paper ground).** Keep SVG (crisp, printable) but
+4. **Project SVG figures (paper ground) — done.** Keep SVG (crisp, printable) but
    redraw as editorial print figures: ink `#22251f` strokes at unified 1 px,
    ramp-token fills, one shared `<defs>` gradient set, pseudo-density plume
    texture from 3–4 stacked translucent spine paths instead of flat wedges.
    Screenshot-check against parchment — the hero ramp needs higher chroma on
    light ground.
-5. **Small surfaces.** Bleaching-widget band fills → ramp gradient (UV→red
+5. **Small surfaces — done.** Bleaching-widget band fills → ramp gradient (UV→red
    tinted parchment→ember→sky); outputs orbit + about portrait contours +
    favicon → token strokes/duotone.
-6. **OG image.** Screenshot the hero canvas region at 1200×630 via the QA
+6. **OG image — done.** Screenshot the hero canvas region at 1200×630 via the QA
    harness → `assets/og.png` + `og:image`/`twitter:card` meta, so link previews
    carry the brand.
 

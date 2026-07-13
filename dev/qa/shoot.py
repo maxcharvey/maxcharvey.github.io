@@ -53,10 +53,19 @@ with sync_playwright() as p:
     page.wait_for_timeout(1100)
     page.screenshot(path=outdir / f"desktop-hero-wake{tag}.png")
 
-    for anchor, name in [("#research", "research"), ("#methods", "methods"), ("#projects", "projects"), ("#contact", "contact")]:
+    for anchor, name in [("#research", "research"), ("#methods", "methods"), ("#projects", "projects"),
+                         ("#outputs", "outputs"), ("#about", "about"), ("#contact", "contact")]:
         page.evaluate(f"document.querySelector('{anchor}').scrollIntoView()")
         page.wait_for_timeout(2200)
         page.screenshot(path=outdir / f"desktop-{name}{tag}.png")
+        if anchor == "#research":
+            page.locator("[data-scene='plume']").evaluate("el => el.scrollIntoView({block: 'center'})")
+            page.wait_for_timeout(2600)
+            page.screenshot(path=outdir / f"desktop-research-plume{tag}.png")
+        if anchor == "#projects":
+            page.locator("#project-p3").evaluate("el => el.scrollIntoView({block: 'start'})")
+            page.wait_for_timeout(900)
+            page.screenshot(path=outdir / f"desktop-projects-lower{tag}.png")
 
     page.evaluate("document.querySelector('#methods').scrollIntoView()")
     page.wait_for_timeout(800)
@@ -96,6 +105,21 @@ with sync_playwright() as p:
     page.screenshot(path=outdir / f"desktop-hero-reduced{tag}.png")
     report.append(f"REDUCED-MOTION console/page errors: {len(rerrs)}")
     report += rerrs
+    ctx.close()
+
+    # ---------- Social preview (deterministic reduced-motion hero) ----------
+    ctx = browser.new_context(viewport={"width": 1200, "height": 630}, device_scale_factor=1,
+                              reduced_motion="reduce")
+    page = ctx.new_page()
+    oerrs = []
+    collect(page, oerrs)
+    page.goto(BASE, wait_until="networkidle")
+    page.wait_for_timeout(1800)
+    page.evaluate("window.scrollTo(0, 0)")
+    page.screenshot(path="assets/og.png", animations="disabled")
+    report.append(f"OG PREVIEW console/page errors: {len(oerrs)}")
+    report += oerrs
+    report.append("OG preview: assets/og.png (1200×630)")
     ctx.close()
     browser.close()
 
