@@ -335,7 +335,24 @@ canvas {
   mix-blend-mode: screen;
 }
 
-.hero-schematic {
+.hero-contours {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.12;
+}
+
+.hero-contours path {
+  fill: none;
+  stroke: rgba(232, 221, 205, 0.19);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.trajectory {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -345,66 +362,17 @@ canvas {
   z-index: 1;
 }
 
-.hero-trajectory-family path,
-.hero-trajectory-focus,
-.hero-sample-transect,
-.hero-sample-window,
-.hero-source-terrain {
+.trajectory path {
   fill: none;
   stroke-linecap: round;
+  stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
-.hero-trajectory-family path {
-  stroke: rgba(183, 201, 207, 0.19);
-  stroke-width: 1;
-  stroke-dasharray: 3 12;
-  animation: dash-flow 24s linear infinite;
-}
-
-.hero-trajectory-family path:nth-child(2) { animation-delay: -5s; }
-.hero-trajectory-family path:nth-child(3) { animation-delay: -11s; }
-.hero-trajectory-family path:nth-child(4) { animation-delay: -16s; }
-
-.hero-trajectory-focus {
-  stroke: rgba(238, 203, 165, 0.52);
-  stroke-width: 1.15;
-  stroke-dasharray: 1 11;
-  marker-mid: url(#hero-trajectory-arrow);
+.trajectory-a path {
+  stroke: rgba(230, 224, 211, 0.4);
+  stroke-dasharray: 4 14;
   animation: dash-flow 18s linear infinite;
-}
-
-.hero-sample-transect {
-  stroke: rgba(235, 229, 216, 0.36);
-  stroke-width: 1;
-  stroke-dasharray: 4 7;
-}
-
-.hero-sample-window {
-  fill: rgba(139, 182, 201, 0.035);
-  stroke: rgba(187, 214, 221, 0.46);
-  stroke-width: 1;
-}
-
-.hero-plane {
-  fill: rgba(242, 238, 226, 0.9);
-  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.42));
-}
-
-.hero-sample-core {
-  fill: var(--sky-bright);
-  box-shadow: 0 0 16px var(--sky-bright);
-}
-
-.hero-source-terrain {
-  stroke: rgba(213, 191, 164, 0.21);
-  stroke-width: 1;
-}
-
-.hero-source-flame,
-.hero-source-mark circle {
-  fill: var(--ember-soft);
-  filter: drop-shadow(0 0 9px rgba(223, 156, 109, 0.85));
 }
 
 .section-dissolve {
