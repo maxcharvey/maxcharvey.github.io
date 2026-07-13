@@ -222,14 +222,14 @@
 
   const contactSpine = (width, height) => (width < 720
     ? {
-        start: { x: width * 0.92, y: height * 1.04 },
+        start: { x: width * 0.92, y: height * 0.985 },
         controlA: { x: width * 0.9, y: height * 0.7 },
         controlB: { x: width * 0.62, y: height * 0.36 },
         end: { x: width * 0.14, y: height * 0.22 },
         widthScale: 0.66
       }
     : {
-        start: { x: width * 0.88, y: height * 1.04 },
+        start: { x: width * 0.88, y: height * 0.985 },
         controlA: { x: width * 0.86, y: height * 0.68 },
         controlB: { x: width * 0.6, y: height * 0.34 },
         end: { x: width * 0.22, y: height * 0.16 },
@@ -605,8 +605,8 @@
       const jy = tangent.x * sinW + tangent.y * cosW;
       const jet = this.transitSpeed * 1.35 * flicker;
       const source = this.spinePoint(0.008);
-      const px = source.x / this.cell;
-      const py = source.y / this.cell;
+      const px = clamp(source.x / this.cell, 2, gw - 3);
+      const py = clamp(source.y / this.cell, 2, gh - 3);
       const radius = Math.max(2.1, 0.016 * Math.min(this.width, this.height) / this.cell * (this.spine.widthScale + 0.5));
       const rate = 15.5 * this.opts.emission * flicker * dt;
       const x0 = Math.max(1, Math.floor(px - radius * 1.6));
