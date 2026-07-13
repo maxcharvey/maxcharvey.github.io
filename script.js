@@ -533,6 +533,21 @@
       });
       ctx.restore();
 
+      // A faint cool envelope makes the trajectory uncertainty legible without
+      // turning the hero into a dashboard.
+      ctx.save();
+      ctx.filter = `blur(${Math.max(8, width / 175)}px)`;
+      [
+        { center: 0, thickness: 1.35, alpha: 0.16 },
+        { center: -0.08, thickness: 1.08, alpha: 0.12 }
+      ].forEach((envelope) => {
+        this.ribbonPath(envelope.center, envelope.thickness, sceneTime);
+        ctx.globalAlpha = envelope.alpha * visibility;
+        ctx.fillStyle = "rgba(126, 166, 181, 0.72)";
+        ctx.fill();
+      });
+      ctx.restore();
+
       ctx.save();
       ctx.filter = `blur(${Math.max(5, width / 260)}px)`;
       this.clouds.forEach((cloud) => {
