@@ -70,6 +70,7 @@
   function setupReveals() {
     const reveals = [...document.querySelectorAll(".reveal")];
     const heroReveals = [...document.querySelectorAll(".hero .reveal")];
+    const scrollReveals = reveals.filter((element) => !element.closest(".hero"));
 
     heroReveals.forEach((element, index) => {
       element.style.transitionDelay = `${90 + index * 90}ms`;
@@ -80,6 +81,13 @@
       return;
     }
 
+    // Hero reveals are a load-in sequence, not a scroll trigger: on short
+    // viewports the last item can sit outside the scroll observer's margin
+    // and never fire. Play them on load regardless of scroll position.
+    requestAnimationFrame(() => {
+      heroReveals.forEach((element) => element.classList.add("is-visible"));
+    });
+
     const observer = new IntersectionObserver((entries, activeObserver) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
@@ -88,7 +96,7 @@
       });
     }, { rootMargin: "0px 0px -7%", threshold: 0.08 });
 
-    reveals.forEach((element) => observer.observe(element));
+    scrollReveals.forEach((element) => observer.observe(element));
   }
 
   class CanvasSurface {
@@ -223,9 +231,9 @@
 
   const heroSpine = (width, height) => (width < 720
     ? {
-        start: { x: width * 0.9, y: height * 0.8 },
-        controlA: { x: width * 0.9, y: height * 0.56 },
-        controlB: { x: width * 0.76, y: height * 0.26 },
+        start: { x: width * 0.96, y: height * 0.94 },
+        controlA: { x: width * 0.92, y: height * 0.62 },
+        controlB: { x: width * 0.76, y: height * 0.28 },
         end: { x: width * 0.19, y: height * 0.2 },
         widthScale: 0.72
       }
