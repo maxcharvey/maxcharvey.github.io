@@ -36,6 +36,15 @@ splitting, curl shedding, and wake recombination. Rendering: grid-resolution
 radial-gradient envelope haze + ember source glow. **No `ctx.filter` anywhere
 in the engine** (Safari compatibility + perf) — keep it that way.
 
+Lighting model (added 2026-07-14): per-frame `computeShade()` accumulates
+density top-down per column (`exp(-0.16·acc)`) for sky-light self-shadowing
+(lit rim, dark cores); static `lightFall` field (built on resize) adds warm
+ember light spill near the source; ramp mixing happens in gamma space
+(squared endpoints, sqrt after lerp); field alpha carries a static hash
+dither to kill banding; grain particles inherit the shade factor and draw as
+velocity-aligned streaks when fast (`speed·0.05` px, cap 6). Embers cool
+white→red over life; a flattened radial gradient pools light on the ground.
+
 Shared colour ramp `SMOKE_RAMP` (script.js): warmThin `216,144,97`, warmDense
 `102,59,41`, coolThin `156,175,187`, coolDense `78,99,118`. Site palette vars:
 `--ember #bf6a3d`, `--ember-soft #df9c6d`, `--sky #5b88a3`, `--sky-bright #8bb6c9`,

@@ -439,11 +439,14 @@
       this.gNx = new Float32Array(size);
       this.gNy = new Float32Array(size);
       this.fade = new Float32Array(size);
+      this.shade = new Float32Array(size);
+      this.lightFall = new Float32Array(size);
 
       this.spine = this.opts.geometry(this.width, this.height);
       this.iterA = this.tier ? 9 : 13;
       this.iterB = this.tier ? 6 : 9;
       this.buildGuide();
+      this.buildLightField();
       this.prefillDensity();
       this.buildFade();
       this.buildEnvelope();
@@ -542,6 +545,22 @@
           const ex = Math.min(1, Math.min(x, gw - 1 - x) / 3.2);
           const ey = Math.min(1, Math.min(y, gh - 1 - y) / 3.2);
           fade[y * gw + x] = ex * ey;
+        }
+      }
+    }
+
+    buildLightField() {
+      const { gw, gh, lightFall } = this;
+      const source = this.spinePoint(0.004);
+      const sx = source.x / this.cell;
+      const sy = source.y / this.cell;
+      const radius = (Math.min(this.width, this.height) * 0.34) / this.cell;
+      const inv = 1 / (radius * radius);
+      for (let y = 0; y < gh; y += 1) {
+        for (let x = 0; x < gw; x += 1) {
+          const dx = x - sx;
+          const dy = y - sy;
+          lightFall[y * gw + x] = Math.exp(-(dx * dx + dy * dy) * inv * 2.2);
         }
       }
     }
@@ -867,8 +886,10 @@
         const swirl = Math.sin(particle.seed * 1.7 + this.simTime * 1.8) * 0.8;
         const su = this.sampleField(this.u, particle.x, particle.y);
         const sv = this.sampleField(this.v, particle.x, particle.y);
-        particle.x += (su + swirl * 0.4) * dt;
-        particle.y += (sv - swirl * 0.25) * dt;
+        particle.vx = su + swirl * 0.4;
+        particle.vy = sv - swirl * 0.25;
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
         if (particle.age > particle.ttl || particle.x < 1.2 || particle.x > gw - 2.2 || particle.y < 1.2 || particle.y > gh - 2.2) {
           this.spawnParticle(particle);
         }
@@ -912,16 +933,39 @@
       }
     }
 
+    computeShade() {
+      // One-pass volumetric approximation: sky light attenuates through
+      // accumulated density from the top of the grid down, so plume cores
+      // self-shadow while upper edges keep a lit rim.
+      const { gw, gh, den, shade } = this;
+      for (let x = 0; x < gw; x += 1) {
+        let acc = 0;
+        for (let y = 0; y < gh; y += 1) {
+          const i = y * gw + x;
+          shade[i] = Math.exp(-0.16 * acc);
+          acc += den[i];
+        }
+      }
+    }
+
     renderField() {
-      const { gw, den, wrm, fade } = this;
+      const { gw, den, wrm, fade, shade, lightFall } = this;
+      this.computeShade();
       const data = this.fieldImage.data;
       const age = this.ageProgress;
       const warmScale = (1 - 0.52 * age) * (1 - this.opts.coolBias);
       const alphaCap = 214 * this.opts.alpha * (1 - 0.16 * age);
+      const emberDim = 1 - 0.4 * age;
       const wt = SMOKE_RAMP.warmThin;
       const wd = SMOKE_RAMP.warmDense;
       const ct = SMOKE_RAMP.coolThin;
       const cd = SMOKE_RAMP.coolDense;
+      // Ramp endpoints squared: mixing in gamma space keeps the warm→cool
+      // and thin→dense transitions luminous instead of muddy.
+      const wt0 = wt[0] * wt[0]; const wt1 = wt[1] * wt[1]; const wt2 = wt[2] * wt[2];
+      const wd0 = wd[0] * wd[0]; const wd1 = wd[1] * wd[1]; const wd2 = wd[2] * wd[2];
+      const ct0 = ct[0] * ct[0]; const ct1 = ct[1] * ct[1]; const ct2 = ct[2] * ct[2];
+      const cd0 = cd[0] * cd[0]; const cd1 = cd[1] * cd[1]; const cd2 = cd[2] * cd[2];
       const total = den.length;
       for (let i = 0, j = 0; i < total; i += 1, j += 4) {
         const density = den[i];
@@ -931,16 +975,18 @@
         }
         const warmth = clamp(wrm[i] / (density + 1e-4), 0, 1) * warmScale;
         const dn = density / (density + 1);
-        const wr = wt[0] + (wd[0] - wt[0]) * dn;
-        const wg = wt[1] + (wd[1] - wt[1]) * dn;
-        const wb = wt[2] + (wd[2] - wt[2]) * dn;
-        const cr = ct[0] + (cd[0] - ct[0]) * dn;
-        const cg = ct[1] + (cd[1] - ct[1]) * dn;
-        const cb = ct[2] + (cd[2] - ct[2]) * dn;
-        data[j] = cr + (wr - cr) * warmth;
-        data[j + 1] = cg + (wg - cg) * warmth;
-        data[j + 2] = cb + (wb - cb) * warmth;
-        data[j + 3] = (1 - Math.exp(-1.5 * density)) * alphaCap * fade[i];
+        const wr = wt0 + (wd0 - wt0) * dn;
+        const wg = wt1 + (wd1 - wt1) * dn;
+        const wb = wt2 + (wd2 - wt2) * dn;
+        const cr = ct0 + (cd0 - ct0) * dn;
+        const cg = ct1 + (cd1 - ct1) * dn;
+        const cb = ct2 + (cd2 - ct2) * dn;
+        const lit = 0.68 + 0.32 * shade[i];
+        const glow = lightFall[i] * (0.3 + 0.7 * warmth) * (1 - Math.exp(-2 * density)) * emberDim;
+        data[j] = Math.sqrt(cr + (wr - cr) * warmth) * lit + 110 * glow;
+        data[j + 1] = Math.sqrt(cg + (wg - cg) * warmth) * lit + 62 * glow;
+        data[j + 2] = Math.sqrt(cb + (wb - cb) * warmth) * lit + 28 * glow;
+        data[j + 3] = (1 - Math.exp(-1.5 * density)) * alphaCap * fade[i] + ((i * 2654435761 >>> 7) & 7) * 0.5 - 1.75;
       }
       this.fieldCtx.putImageData(this.fieldImage, 0, 0);
     }
@@ -951,22 +997,40 @@
       const warmScale = (1 - 0.52 * age) * (1 - this.opts.coolBias);
       const wt = SMOKE_RAMP.warmThin;
       const ct = SMOKE_RAMP.coolThin;
+      ctx.lineCap = "round";
       for (const particle of this.particles) {
         const life = particle.age / particle.ttl;
         const envelope = Math.sin(Math.PI * clamp(life, 0, 1));
         const local = this.sampleField(this.den, particle.x, particle.y);
         if (local < 0.05) continue;
-        const alpha = envelope * Math.min(1, local * 1.4) * (0.09 + particle.bright * 0.2) * this.opts.alpha;
+        // Grains inherit the volume shading so they sit inside the smoke
+        // body instead of floating on top of it.
+        const lit = 0.55 + 0.45 * this.sampleField(this.shade, particle.x, particle.y);
+        const alpha = envelope * Math.min(1, local * 1.4) * (0.09 + particle.bright * 0.2) * this.opts.alpha * lit;
         if (alpha < 0.015) continue;
         const warmth = clamp(this.sampleField(this.wrm, particle.x, particle.y) / (local + 1e-4), 0, 1) * warmScale;
         const glint = particle.bright * (10 + 26 * warmth);
-        const r = Math.round(ct[0] + (wt[0] - ct[0]) * warmth + glint);
-        const g = Math.round(ct[1] + (wt[1] - ct[1]) * warmth + glint * 0.85);
-        const b = Math.round(ct[2] + (wt[2] - ct[2]) * warmth + glint * 0.65);
+        const r = Math.round((ct[0] + (wt[0] - ct[0]) * warmth) * lit + glint);
+        const g = Math.round((ct[1] + (wt[1] - ct[1]) * warmth) * lit + glint * 0.85);
+        const b = Math.round((ct[2] + (wt[2] - ct[2]) * warmth) * lit + glint * 0.65);
+        const px = particle.x * this.cellX;
+        const py = particle.y * this.cellY;
+        const sx = (particle.vx || 0) * this.cellX;
+        const sy = (particle.vy || 0) * this.cellY;
+        const speed = Math.hypot(sx, sy);
+        const streak = Math.min(6, speed * 0.05);
         ctx.beginPath();
-        ctx.arc(particle.x * this.cellX, particle.y * this.cellY, particle.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        ctx.fill();
+        if (streak > 1.2) {
+          ctx.moveTo(px, py);
+          ctx.lineTo(px - sx / speed * streak, py - sy / speed * streak);
+          ctx.lineWidth = particle.size * 1.6;
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+          ctx.stroke();
+        } else {
+          ctx.arc(px, py, particle.size, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+          ctx.fill();
+        }
       }
     }
 
@@ -982,6 +1046,21 @@
 
       ctx.save();
       ctx.globalCompositeOperation = "screen";
+
+      // Light pooling on the ground plane anchors the fire in the scene.
+      ctx.save();
+      ctx.translate(source.x, source.y);
+      ctx.scale(1, 0.3);
+      const pool = ctx.createRadialGradient(0, 0, 0, 0, 0, outerR * 1.5);
+      pool.addColorStop(0, `rgba(214, 122, 64, ${0.2 * dim})`);
+      pool.addColorStop(0.5, `rgba(178, 96, 52, ${0.08 * dim})`);
+      pool.addColorStop(1, "rgba(178, 96, 52, 0)");
+      ctx.fillStyle = pool;
+      ctx.beginPath();
+      ctx.arc(0, 0, outerR * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
       const outer = ctx.createRadialGradient(source.x, source.y, 0, source.x, source.y, outerR);
       outer.addColorStop(0, `rgba(232, 148, 82, ${0.4 * dim})`);
       outer.addColorStop(0.35, `rgba(191, 106, 61, ${0.16 * dim})`);
@@ -1011,9 +1090,13 @@
         const life = (ember.phase + time * (0.055 + e * 0.004)) % 1;
         const x = source.x + ember.drift * (7 + life * 26) + Math.sin(time * 1.3 + e * 2.1) * 3;
         const y = source.y - life * scaleMin * 0.09;
+        // Embers cool as they rise: near-white at the fire, deep red aloft.
+        const r = Math.round(255 - life * 82);
+        const g = Math.round(198 - life * 116);
+        const b = Math.round(132 - life * 96);
         ctx.beginPath();
         ctx.arc(x, y, ember.size * (1 - life * 0.6), 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(248, 178, 110, ${(1 - life) * 0.6 * dim})`;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(1 - life) * 0.6 * dim})`;
         ctx.fill();
       }
       ctx.restore();
